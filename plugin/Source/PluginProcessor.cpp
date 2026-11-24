@@ -333,7 +333,7 @@ void LoafBreakerProcessor::setStateInformation(const void* data, int size)
         params.replaceState(juce::ValueTree::fromXml(*x));
     const auto zn = in.readInt64();
     juce::MemoryBlock z;
-    in.readIntoMemoryBlock(z, (juce::ssize) zn);
+    in.readIntoMemoryBlock(z, (int) zn);   // (the image deflated: well under 2 GB)
     juce::MemoryInputStream zi(z, false);
     juce::GZIPDecompressorInputStream gz(zi);
     juce::MemoryBlock flash;
