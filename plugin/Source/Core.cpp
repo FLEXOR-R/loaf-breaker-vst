@@ -40,6 +40,25 @@ const juce::MemoryBlock& Core::bankFile()
     return data;
 }
 
+// the breaks' categories (core/build_bank.sh's breaks.index, beside the bank): NAME -> CATEGORY, TITLE
+const std::map<juce::String, std::pair<juce::String, juce::String>>& Core::breakIndex()
+{
+    static std::map<juce::String, std::pair<juce::String, juce::String>> idx;
+    static std::once_flag once;
+    std::call_once(once, [] {
+        auto lib = findLibrary();
+        for (auto dir : { lib.getParentDirectory(), lib.getParentDirectory().getParentDirectory().getChildFile("Resources") })
+            if (dir.getChildFile("breaks.index").existsAsFile()) {
+                for (auto& l : juce::StringArray::fromLines(dir.getChildFile("breaks.index").loadFileAsString())) {
+                    auto f = juce::StringArray::fromTokens(l, "\t", "");
+                    if (f.size() >= 2) idx[f[0].trim()] = { f[1].trim(), f.size() > 2 ? f[2].trim() : juce::String() };
+                }
+                break;
+            }
+    });
+    return idx;
+}
+
 void Core::unload()
 {
     lib.reset();
@@ -82,9 +101,9 @@ bool Core::load(juce::String& error)
     LB_FN(playing, "lb_playing") LB_FN(flashSize, "lb_flash_size") LB_FN(flashGet, "lb_flash_get")
     LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync") LB_FN(bank, "lb_bank")
     LB_FN(breaks, "lb_breaks") LB_FN(fm1Export, "lb_fm1_export")
-    LB_FN(model, "lb_model") LB_FN(wave, "lb_wave") LB_FN(keyIndex, "lb_key_index") LB_FN(fm1Import, "lb_fm1_import") LB_FN(fm1List, "lb_fm1_list") LB_FN(fm1Put, "lb_fm1_put") LB_FN(fm1Take, "lb_fm1_take") LB_FN(kickSize, "lb_kick_size") LB_FN(kickRead, "lb_kick_read") LB_FN(kickRender, "lb_kick_render") LB_FN(fm1PutKicks, "lb_fm1_put_kicks") LB_FN(vstPutKicks, "lb_vst_put_kicks")
+    LB_FN(model, "lb_model") LB_FN(wave, "lb_wave") LB_FN(keyIndex, "lb_key_index") LB_FN(fm1Import, "lb_fm1_import") LB_FN(fm1List, "lb_fm1_list") LB_FN(fm1Put, "lb_fm1_put") LB_FN(fm1Take, "lb_fm1_take") LB_FN(breakName, "lb_break_name") LB_FN(get, "lb_get") LB_FN(breakGo, "lb_break_go") LB_FN(kickSize, "lb_kick_size") LB_FN(kickRead, "lb_kick_read") LB_FN(kickRender, "lb_kick_render") LB_FN(fm1PutKicks, "lb_fm1_put_kicks") LB_FN(vstPutKicks, "lb_vst_put_kicks")
 #undef LB_FN
-    if (abi() != 9) {
+    if (abi() != 10) {
         error = "LOAF BREAKER: the core's version does not match the plugin's";
         unload();
         return false;

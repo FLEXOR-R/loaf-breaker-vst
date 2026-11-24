@@ -46,6 +46,7 @@ jobs:
           path: |
             build/lbcore.dll
             build/breaks.bank
+            build/breaks.index
             build/coretest.exe
       - name: The plugin on Linux, and its checks (as a DAW loads it; pluginval)
         run: |
@@ -57,7 +58,7 @@ jobs:
           A=build/cmake/LoafBreaker_artefacts/Release
           cp build/liblbcore.so "$A/VST3/LOAF BREAKER.vst3/Contents/x86_64-linux/"
           mkdir -p "$A/VST3/LOAF BREAKER.vst3/Contents/Resources"
-          cp build/breaks.bank "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
+          cp build/breaks.bank build/breaks.index "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
           xvfb-run -a build/cmake/lbtest_artefacts/Release/lbtest "$PWD/$A/VST3/LOAF BREAKER.vst3" linux.wav
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
           unzip -q pv.zip && chmod +x pluginval
@@ -82,8 +83,8 @@ jobs:
           A="build/cmake/LoafBreaker_artefacts/Release"
           cp build/lbcore.dll "$A/VST3/LOAF BREAKER.vst3/Contents/x86_64-win/"
           mkdir -p "$A/VST3/LOAF BREAKER.vst3/Contents/Resources"
-          cp build/breaks.bank "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
-          cp build/lbcore.dll build/breaks.bank "$A/Standalone/"
+          cp build/breaks.bank build/breaks.index "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
+          cp build/lbcore.dll build/breaks.bank build/breaks.index "$A/Standalone/"
           (cd build && ./coretest.exe)   # (the same on Windows: its own way of keeping the state)
           "build/cmake/lbtest_artefacts/Release/lbtest.exe" "$PWD/$A/VST3/LOAF BREAKER.vst3" windows.wav
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
@@ -106,7 +107,7 @@ jobs:
           P="LOAF-BREAKER-VST-$VERSION-Windows"
           mkdir -p "pkg/$P/VST3" "pkg/$P/Standalone"
           cp -r "$A/VST3/LOAF BREAKER.vst3" "pkg/$P/VST3/"
-          cp "$A/Standalone/LOAF BREAKER.exe" "$A/Standalone/lbcore.dll" "$A/Standalone/breaks.bank" "pkg/$P/Standalone/"
+          cp "$A/Standalone/LOAF BREAKER.exe" "$A/Standalone/lbcore.dll" "$A/Standalone/breaks.bank" "$A/Standalone/breaks.index" "pkg/$P/Standalone/"
           cp INSTALL.txt "pkg/$P/LISEZ-MOI.txt"
           cd pkg && 7z a -bd "../$P.zip" "$P" > /dev/null
           echo "PKG=$P" >> "$GITHUB_ENV"

@@ -83,6 +83,18 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   "LBK1", size, the kick whole), lbcore.c lb_kick_render (the blob as the kick playing, stopped, one hit through the
   firmware's engine, the state put back: lbsnap). The image always every object in order (the FM-1 checks them all).
   Checked: a put restored in the firmware's host simulator, its backup again holds the picks (scratch test).
+  Breaks (FLEXOR: "une playlist de break rangeable dans n'importe quel ordre et assignable à des touches next break et
+  previous break en dessous du nom du break ... cliquer sur le nom du break ouvre une liste déroulante digeste avec
+  des sous-menus ... les catégories de la page break du site"): core/build_bank.sh also writes breaks.index (NAME,
+  CATEGORY as break_lib.py FOLDER, TITLE) beside the bank (Resources, the Standalone's folder); lbcore lb_break_name /
+  lb_break_go (break_ask); the header's name a menu by category (MES BREAKS: the player's own), < PLAYLIST > under it;
+  the playlist the project's (params.state "playlist", names); PlaylistEditor (drag to order). OFF zones: a long
+  slider (> 12 values) with an OFF has it wider (14 % of its travel), shaded, filled from OFF; double click: OFF.
+  The keyboard (FLEXOR: "se déplacer ... dans le séquenceur et appuyer sur entrée pour mettre une step ... tout
+  mapper ... penser la VST comme un mini DAW"): KeyMap stores juce::KeyPress (modifiers) by context (0 everywhere,
+  1 the grid, 2 the menus; settings "keys2"); Nav (F1-F8 domains, TAB tabs, CTRL+S/Z/C/V/B/P/G/K, F9), Seq (the grid's
+  cursor, ENTER, DEL, ALT/SHIFT/CTRL+arrows its values, [ ] rotate: SeqPanel::command), Menu (MenuContent::command:
+  a focus frame, LEFT/RIGHT the value).
   Next: a song arranger (the tracks' items), the kick's picture, a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.

@@ -145,7 +145,21 @@ uint32_t lb_flash_get(uint8_t *out, uint32_t n)
     return n;
 }
 int lb_flash_set(const uint8_t *in, uint32_t n) { return rf_flash_stage(in, n); }
-int lb_breaks(void) { return (int)n_breaks; }   /* breaks in all (the bank's, the player's) */
+int lb_breaks(void) { return (int)n_breaks; }
+/* (the VST's break browser and playlist: FLEXOR, "une liste déroulante digeste avec des sous-menus ... une playlist de
+ * breaks"): each break's name, and one asked for (at the next bar while playing, as ALGORITHM) */
+int lb_break_name(int i, char *out, int cap)
+{
+    const char *n;
+    int k = 0;
+    if (i < 0 || i >= (int)n_breaks || cap < 1)
+        return 0;
+    n = break_name((uint32_t)i);
+    while (n[k] && k < cap - 1) { out[k] = n[k]; k++; }
+    out[k] = 0;
+    return 1;
+}
+void lb_break_go(int i) { if (i >= 0 && i < (int)n_breaks) break_ask((uint32_t)i); }   /* breaks in all (the bank's, the player's) */
 void lb_save(void) { store_all(); }   /* the FM-1's SAVE, without its screen: into the flash image */
 void lb_sync(int on) { set.clk_in = (uint8_t)(on != 0); }   /* follow the MIDI clock in (the host's) */
 LB_API uint32_t lb_debug(void) { return (uint32_t)set.tut | (uint32_t)set.novice << 8 | (uint32_t)ui.page << 16 | (uint32_t)(ui.lobo_t != 0) << 24; }

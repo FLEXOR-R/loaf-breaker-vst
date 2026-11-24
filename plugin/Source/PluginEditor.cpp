@@ -57,14 +57,31 @@ struct Header : Part
     bool tempoHover = false, tempoDrag = false;
     // the tempo: dragged up / down or the wheel, 1 BPM a step (SELECT never touches it in the VST)
     static juce::Rectangle<float> tempoArea() { return { 500, 8, 136, 64 }; }
+    // the break (FLEXOR: "cliquer sur le nom du break ouvre une liste déroulante ... next break et previous break en
+    // dessous du nom du break"): its name a menu by category, < PLAYLIST > under it
+    static juce::Rectangle<float> breakName() { return { 724, 22, 216, 36 }; }
+    static juce::Rectangle<float> breakPrev() { return { 724, 60, 26, 20 }; }
+    static juce::Rectangle<float> breakList() { return { 754, 60, 156, 20 }; }
+    static juce::Rectangle<float> breakNext() { return { 914, 60, 26, 20 }; }
+    int brkHover = 0;
     void tempo(int n) { if (n) ed.proc.send(LoafBreakerProcessor::CmdTempo, 0, n); }
     void mouseMove(const juce::MouseEvent& e) override
     {
+        const int bh = breakName().contains(e.position) ? 1 : breakPrev().contains(e.position) ? 2 : breakList().contains(e.position) ? 3 : breakNext().contains(e.position) ? 4 : 0;
+        if (bh != brkHover) { brkHover = bh; setMouseCursor(bh ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor); repaint(); }
         const bool h = tempoArea().contains(e.position);
         if (h != tempoHover) { tempoHover = h; setMouseCursor(h ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor); repaint(); }
     }
     void mouseExit(const juce::MouseEvent&) override { if (tempoHover) { tempoHover = false; setMouseCursor(juce::MouseCursor::NormalCursor); repaint(); } }
-    void mouseDown(const juce::MouseEvent& e) override { tempoDrag = tempoArea().contains(e.position); tdrag = 0.0f; }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        if (breakName().contains(e.position)) { ed.breakMenu(); return; }
+        if (breakPrev().contains(e.position)) { ed.proc.breakStep(-1); return; }
+        if (breakNext().contains(e.position)) { ed.proc.breakStep(1); return; }
+        if (breakList().contains(e.position)) { ed.playlistEditor(); return; }
+        tempoDrag = tempoArea().contains(e.position);
+        tdrag = 0.0f;
+    }
     void mouseDrag(const juce::MouseEvent& e) override
     {
         if (! tempoDrag) return;
@@ -117,10 +134,19 @@ struct Header : Part
         // the break and the pattern
         g.setColour(sk.dim);
         g.setFont(ui::label(11.0f));
-        g.drawText("BREAK", 730, 14, 200, 12, juce::Justification::centredLeft);
+        g.drawText("BREAK  (CLIC: LA LISTE)", 730, 8, 200, 12, juce::Justification::centredLeft);
         g.drawText("PATTERN", 950, 14, 80, 12, juce::Justification::centredLeft);
-        g.setColour(sk.ink);
-        ui::fitText(g, juce::String(m.brk), { 728, 26, 210, 40 }, ui::value(38.0f), juce::Justification::centredLeft);
+        if (brkHover == 1) { g.setColour(sk.panel2); g.fillRect(breakName()); }
+        g.setColour(brkHover == 1 ? sk.hot : sk.ink);
+        ui::fitText(g, juce::String(m.brk) + juce::String(juce::CharPointer_UTF8(" \xe2\x96\xbe")), breakName().reduced(4.0f, 0.0f), ui::value(32.0f), juce::Justification::centredLeft);
+        {
+            const auto pl = ed.proc.playlist();
+            const int at = pl.indexOf(juce::String(m.brk).trim());
+            ui::button(g, breakPrev(), "<", false, brkHover == 2, 12.0f);
+            ui::button(g, breakNext(), ">", false, brkHover == 4, 12.0f);
+            ui::button(g, breakList(), pl.isEmpty() ? juce::String("PLAYLIST (VIDE)") : "PLAYLIST " + (at >= 0 ? juce::String(at + 1) : juce::String("-")) + "/" + juce::String(pl.size()),
+                       false, brkHover == 3, 10.5f);
+        }
         g.setFont(ui::value(38.0f));
         g.drawText("P" + juce::String(m.pattern).paddedLeft('0', 2), 948, 26, 80, 40, juce::Justification::centredLeft);
         // the FM-1's message, or the VST's own
@@ -398,14 +424,44 @@ struct MenuContent : Part
         juce::Rectangle<float> row, ctl;
         menus::Kind kind = menus::Unknown;
         int cur = -1, n = 0;
+        int off = -1;                    // (a long slider's OFF: a wider stretch of it, shaded)
+        float offW = 1.0f;
         bool wrap = false;
     };
     struct Card { juce::String title; juce::Rectangle<float> r; bool live = false; std::vector<Param> ps; };
     std::vector<Card> cards;
     int hoverCard = -1, hoverParam = -1;
+    int focus = -1;                      // (the setting the keyboard has: its place among them all, -1 none)
+    Param* nth(int i) { for (auto& c : cards) for (auto& q : c.ps) if (i-- == 0) return &q; return nullptr; }
+    int count() const { int n = 0; for (auto& c : cards) n += (int) c.ps.size(); return n; }
+    void command(int c)
+    {
+        using A = KeyAction;
+        const int n = count();
+        if (! n) return;
+        if (focus < 0 || focus >= n) focus = 0;
+        else if (c == A::MenuUp) focus = (focus + n - 1) % n;
+        else if (c == A::MenuDown) focus = (focus + 1) % n;
+        if (auto* q = nth(focus)) {
+            if (c == A::MenuLeft || c == A::MenuRight) nudge(*q, c == A::MenuRight ? 1 : -1);
+            else if (c == A::MenuBigLeft || c == A::MenuBigRight) {
+                const int step = juce::jmax(1, q->n / 10);
+                if (q->kind == menus::Unknown) nudge(*q, c == A::MenuBigRight ? 1 : -1);
+                else go(*q, q->cur + (c == A::MenuBigRight ? step : -step));
+            } else if (c == A::MenuOpen) {
+                if (q->kind == menus::Toggle) go(*q, 1 - q->cur);
+                else if (q->n > 1) listMenu(*q);
+            }
+            if (auto* vp = findParentComponentOfClass<juce::Viewport>())   // (kept in sight)
+                if (! vp->getViewArea().contains(q->row.toNearestInt()))
+                    vp->setViewPosition(0, juce::jmax(0, (int) q->row.getY() - 60));
+        }
+        repaint();
+    }
     // a drag on a slider: the value it started at, the pixels a step
     Param* dragP = nullptr;
     int dragFrom = 0, dragSent = 0;
+    float dragU = 0.0f;
     float pxStep = 8.0f;
 
     int availW = 1400;
@@ -481,6 +537,12 @@ struct MenuContent : Part
         q.cur = o.v.indexOf(q.val);
         if (q.cur < 0) { ed.opts.erase(it); q.kind = menus::Unknown; ed.wantOptions(q.part, q.knob); return; }   // (the list moved on)
         q.kind = menus::kindOf(o);
+        q.off = -1;
+        q.offW = 1.0f;
+        if (q.kind == menus::Slider && q.n > 12)   // (FLEXOR: "les curseurs qui ont pas mal de travel, comme les filtres,
+                                                   // doivent avoir une zone OFF plus grande et délimitée discrètement")
+            for (int i = 0; i < q.n; ++i)
+                if (o.v[i].trim() == "OFF") { q.off = i; q.offW = juce::jmax(2.5f, 0.14f * (float) (q.n - 1)); break; }
     }
     // the values only (the same parts): no relayout
     bool sameShape() const
@@ -520,6 +582,10 @@ struct MenuContent : Part
             }
             for (int pi = 0; pi < (int) c.ps.size(); ++pi) drawParam(g, c.ps[(size_t) pi], hoverCard == ci && hoverParam == pi);
         }
+        if (auto* f = focus >= 0 ? nth(focus) : nullptr) {   // (the keyboard's setting: a frame)
+            g.setColour(sk.hot);
+            g.drawRect(f->row.expanded(4.0f, 2.0f), 1.5f);
+        }
         if (cards.empty()) {
             g.setColour(sk.dim);
             g.setFont(ui::label(14.0f));
@@ -550,13 +616,37 @@ struct MenuContent : Part
             auto tr = r.reduced(0.0f, 5.0f);
             g.setColour(sk.panel2);
             g.fillRect(tr);
-            const float t = q.n > 1 ? (float) q.cur / (q.n - 1) : 0.0f;
+            const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
+            if (q.off >= 0) {                    // the OFF stretch: a shade, its edges a soft shadow
+                const float c = unitsAt(q, q.off);
+                const float x0 = tr.getX() + tr.getWidth() * frac(q, c - q.offW * 0.5f), x1 = tr.getX() + tr.getWidth() * frac(q, c + q.offW * 0.5f);
+                juce::Rectangle<float> band(x0, tr.getY(), x1 - x0, tr.getHeight());
+                g.setColour(sk.bg.withAlpha(0.55f));
+                g.fillRect(band);
+                for (int side = 0; side < 2; ++side) {
+                    const float ex = side ? band.getRight() : band.getX(), w = juce::jmin(8.0f, band.getWidth() * 0.3f);
+                    juce::ColourGradient gr(sk.bg.withAlpha(0.65f), ex, 0.0f, sk.bg.withAlpha(0.0f), side ? ex - w : ex + w, 0.0f, false);
+                    g.setGradientFill(gr);
+                    g.fillRect(side ? juce::Rectangle<float>(ex - w, band.getY(), w, band.getHeight()) : juce::Rectangle<float>(ex, band.getY(), w, band.getHeight()));
+                    g.setColour(sk.line.brighter(0.15f));
+                    g.fillRect(ex - 0.5f, band.getY(), 1.0f, band.getHeight());
+                }
+                if (band.getWidth() > 26.0f && q.cur != q.off) {
+                    g.setColour(sk.dim.withAlpha(0.8f));
+                    g.setFont(ui::label(10.0f));
+                    g.drawText("OFF", band, juce::Justification::centred);
+                }
+            }
             g.setColour(sk.accent.withAlpha(hover || dragP == &q ? 0.55f : 0.38f));
-            g.fillRect(tr.withWidth(juce::jmax(2.0f, tr.getWidth() * t)));
+            if (q.off >= 0) {                    // (filled from OFF: in its middle, a bipolar one; at an end, from that end)
+                const float o = frac(q, unitsAt(q, q.off));
+                g.fillRect(juce::Rectangle<float>(tr.getX() + tr.getWidth() * juce::jmin(o, t), tr.getY(), tr.getWidth() * std::abs(t - o), tr.getHeight()));
+            } else
+                g.fillRect(tr.withWidth(juce::jmax(2.0f, tr.getWidth() * t)));
             if (q.n <= 33)                       // (few steps: each one marked)
                 for (int i = 1; i < q.n - 1; ++i) {
                     g.setColour(sk.line.withAlpha(0.8f));
-                    g.fillRect(tr.getX() + tr.getWidth() * i / (q.n - 1), tr.getBottom() - 5.0f, 1.0f, 5.0f);
+                    g.fillRect(tr.getX() + tr.getWidth() * frac(q, unitsAt(q, i)), tr.getBottom() - 5.0f, 1.0f, 5.0f);
                 }
             g.setColour(sk.hot);
             g.fillRect(tr.getX() + tr.getWidth() * t - 1.0f, tr.getY(), 3.0f, tr.getHeight());
@@ -624,6 +714,18 @@ struct MenuContent : Part
         q.val = optAt(q, i);
         repaint();
     }
+    // a slider's places: each value a unit wide, its OFF wider (offW); where value i sits (0..1), the value at u units
+    static float wOf(const Param& q, int i) { return i == q.off ? q.offW : 1.0f; }
+    static float unitsAt(const Param& q, int i) { float u = 0.0f; for (int j = 0; j < i; ++j) u += wOf(q, j); return u + wOf(q, i) * 0.5f; }
+    static float unitsAll(const Param& q) { return q.n > 1 ? unitsAt(q, q.n - 1) - unitsAt(q, 0) : 1.0f; }
+    static float frac(const Param& q, float u) { return juce::jlimit(0.0f, 1.0f, (u - unitsAt(q, 0)) / unitsAll(q)); }
+    static int indexAtUnits(const Param& q, float u)
+    {
+        int best = 0;
+        float bd = 1e9f;
+        for (int i = 0; i < q.n; ++i) { const float d = std::abs(unitsAt(q, i) - u); if (d < bd) { bd = d; best = i; } }
+        return best;
+    }
     void nudge(Param& q, int d)                  // a step, as a detent: stops at the ends (a slider, buttons)
     {
         if (q.kind == menus::Unknown) { ed.proc.setValue(q.part, q.knob, d); return; }
@@ -643,8 +745,9 @@ struct MenuContent : Part
         case menus::Slider:
             dragP = q;
             dragFrom = dragSent = q->cur;
+            dragU = unitsAt(*q, q->cur);
             // the steps' width: few steps wide, many narrow (the whole range over about the slider and a half)
-            pxStep = juce::jlimit(2.5f, 28.0f, q->ctl.getWidth() * 1.4f / juce::jmax(1, q->n - 1));
+            pxStep = juce::jlimit(2.5f, 28.0f, q->ctl.getWidth() * 1.4f / unitsAll(*q));   // (a unit's pixels)
             break;
         case menus::Unknown:
             nudge(*q, e.position.x < q->ctl.getCentreX() ? -1 : 1);
@@ -657,14 +760,17 @@ struct MenuContent : Part
         if (! dragP) return;
         const float dx = (float) e.getDistanceFromDragStartX() - (float) e.getDistanceFromDragStartY() * 0.5f;
         const float slow = e.mods.isShiftDown() ? 4.0f : 1.0f;
-        const int want = juce::jlimit(0, dragP->n - 1, dragFrom + (int) std::floor(dx / (pxStep * slow) + 0.5f));
+        const int want = juce::jlimit(0, dragP->n - 1, indexAtUnits(*dragP, dragU + dx / (pxStep * slow)));
         if (want != dragSent) { go(*dragP, want); dragSent = want; }
     }
     void mouseUp(const juce::MouseEvent&) override { dragP = nullptr; repaint(); }
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
         auto* q = at(hit(e.position));
-        if (q && q->kind == menus::Slider && q->ctl.contains(e.position)) listMenu(*q);
+        if (q && q->kind == menus::Slider && q->ctl.contains(e.position)) {
+            if (q->off >= 0) go(*q, q->off);     // (a double click: back to OFF; every value: a right click)
+            else listMenu(*q);
+        }
     }
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
@@ -1103,6 +1209,63 @@ struct SeqPanel : Part
         }
     }
     void mouseUp(const juce::MouseEvent&) override { paintRow = -1; sliderCtl = -1; painted.clear(); }
+    // the keyboard (FLEXOR: "se déplacer facilement de gauche à droite et de haut en bas dans le séquenceur et appuyer
+    // sur entrée pour mettre une step"): the cursor (the step picked), the step on / off, its values, the lane moved
+    void command(int c)
+    {
+        using A = KeyAction;
+        const int len = laneLen(selRow);
+        auto col = [&](int v) { selCol = juce::jlimit(0, laneLen(selRow) - 1, v); };
+        const uint8_t* b = ed.seq.brk[selCol & 31];
+        switch (c) {
+        case A::SeqLeft: col(selCol - 1); break;
+        case A::SeqRight: col(selCol + 1); break;
+        case A::SeqBeatLeft: col(selCol % 4 ? selCol / 4 * 4 : selCol - 4); break;
+        case A::SeqBeatRight: col((selCol / 4 + 1) * 4); break;
+        case A::SeqBarLeft: col(selCol % 16 ? selCol / 16 * 16 : selCol - 16); break;
+        case A::SeqBarRight: col((selCol / 16 + 1) * 16); break;
+        case A::SeqHome: col(0); break;
+        case A::SeqEnd: col(len - 1); break;
+        case A::SeqUp: selRow = juce::jmax(0, selRow - 1); col(selCol); break;
+        case A::SeqDown: selRow = juce::jmin(4, selRow + 1); col(selCol); break;
+        case A::SeqToggle:
+            if (selRow > 0) { ed.proc.step(1, selRow - 1, selCol, 0, 0); ed.seq.mask[selRow - 1][selCol >> 4] ^= (uint16_t) (1u << (selCol & 15)); }
+            else ed.proc.step(4, 0, selCol & 31, 0, b[0] ? -(int) b[0] : 1);   // (the break: OFF, or LOOP)
+            break;
+        case A::SeqClear:
+            if (selRow > 0 && on(selRow, selCol)) { ed.proc.step(1, selRow - 1, selCol, 0, 0); ed.seq.mask[selRow - 1][selCol >> 4] ^= (uint16_t) (1u << (selCol & 15)); }
+            else if (selRow == 0 && b[0]) ed.proc.step(4, 0, selCol & 31, 0, -(int) b[0]);
+            break;
+        case A::SeqMainUp: case A::SeqMainDown: {
+            const int d = c == A::SeqMainUp ? 1 : -1;
+            if (selRow == 0) ed.proc.step(4, 0, selCol & 31, 0, d);           // (the break: its slice)
+            else ed.proc.step(2, selRow - 1, selCol, 1, d);                     // (a drum: its HITS)
+            break;
+        }
+        case A::SeqAltUp: case A::SeqAltDown: {
+            const int d = c == A::SeqAltUp ? 1 : -1;
+            if (selRow == 0) ed.proc.step(4, 0, selCol & 31, 1, d);           // (the break: its pitch)
+            else ed.proc.step(2, selRow - 1, selCol, selRow == 1 ? 0 : 2, d);   // (the kick: its note; a drum: its chance)
+            break;
+        }
+        case A::SeqChanceUp: case A::SeqChanceDown: {
+            const int d = c == A::SeqChanceUp ? 1 : -1;
+            if (selRow == 0) ed.proc.step(4, 0, selCol & 31, 2, d);           // (the break: its repeat)
+            else ed.proc.step(2, selRow - 1, selCol, 2, d);
+            break;
+        }
+        case A::SeqNudgeUp: case A::SeqNudgeDown: {
+            const int d = c == A::SeqNudgeUp ? 1 : -1;
+            if (selRow == 0) ed.proc.step(4, 0, selCol & 31, 3, d);           // (the break: reversed or not)
+            else ed.proc.step(2, selRow - 1, selCol, 3, d);
+            break;
+        }
+        case A::SeqRotLeft: ed.proc.step(9, selRow == 0 ? 4 : selRow - 1, 0, 0, -1); break;
+        case A::SeqRotRight: ed.proc.step(9, selRow == 0 ? 4 : selRow - 1, 0, 0, 1); break;
+        default: break;
+        }
+        repaint();
+    }
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         const int r = rowAt(e.position.y), i = colAt(e.position.x);
@@ -1301,6 +1464,8 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
     startTimerHz(30);
     if (juce::SystemStats::getEnvironmentVariable("LOAF_TEST_OPEN", {}) == "gestion")   // (tests: the manager at once)
         juce::Timer::callAfterDelay(1500, [this] { openManager(); });
+    if (juce::SystemStats::getEnvironmentVariable("LOAF_TEST_OPEN", {}) == "playlist")
+        juce::Timer::callAfterDelay(1500, [this] { playlistEditor(); });
 }
 
 void LoafBreakerEditor::openManager()
@@ -1458,6 +1623,153 @@ void LoafBreakerEditor::persoEditor()
     o.launchAsync();
 }
 
+// the breaks by category, as the site's BREAKS page has them (breaks.index): a click plays it (at the next bar); the
+// playlist's own submenu; this break added to it; the playlist edited
+void LoafBreakerEditor::breakMenu()
+{
+    const auto all = proc.breaks();
+    const int now = proc.breakNow();
+    static const char* ORDER[5] = { "FLEXOR", "CYBERWORM AMENS", "HUGE AMEN PACK", "CLASSICS", "MES BREAKS" };
+    juce::PopupMenu m;
+    auto pl = proc.playlist();
+    juce::PopupMenu plm;
+    for (int k = 0; k < pl.size(); ++k)
+        for (int i = 0; i < (int) all.size(); ++i)
+            if (all[(size_t) i].name == pl[k]) { plm.addItem(1 + i, juce::String(k + 1) + ".  " + pl[k], true, i == now); break; }
+    m.addSectionHeader("BREAKS  (" + juce::String((int) all.size()) + ")");
+    for (auto* cat : ORDER) {
+        juce::PopupMenu sub;
+        int n = 0;
+        for (int i = 0; i < (int) all.size(); ++i)
+            if (all[(size_t) i].cat == cat) {
+                const auto& b = all[(size_t) i];
+                sub.addItem(1 + i, b.name + (b.title.isNotEmpty() ? "   -   " + b.title : juce::String()) + (pl.contains(b.name) ? "   [P]" : ""), true, i == now);
+                n++;
+            }
+        if (n) m.addSubMenu(juce::String(cat) + "  (" + juce::String(n) + ")", sub, true, juce::Image(), now >= 0 && now < (int) all.size() && all[(size_t) now].cat == cat);
+    }
+    m.addSeparator();
+    m.addSubMenu("PLAYLIST (" + juce::String(pl.size()) + ")", plm, pl.size() > 0);
+    if (now >= 0 && now < (int) all.size()) {
+        const auto name = all[(size_t) now].name;
+        if (! pl.contains(name)) m.addItem(9001, "Ajouter " + name + " a la playlist");
+        else m.addItem(9002, "Retirer " + name + " de la playlist");
+    }
+    m.addItem(9003, "Gerer la playlist (ordre, ajouts)...");
+    juce::Component::SafePointer<LoafBreakerEditor> self(this);
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&root->header).withMaximumNumColumns(1), [self, all, now](int r) {
+        if (! self || r == 0) return;
+        auto pl2 = self->proc.playlist();
+        if (r == 9001 && now >= 0) { pl2.add(all[(size_t) now].name); self->proc.setPlaylist(pl2); }
+        else if (r == 9002 && now >= 0) { pl2.removeString(all[(size_t) now].name); self->proc.setPlaylist(pl2); }
+        else if (r == 9003) self->playlistEditor();
+        else if (r >= 1 && r <= (int) all.size()) self->proc.breakGo(r - 1);
+        self->root->header.repaint();
+    });
+}
+
+// the playlist: its breaks in their order (drag a row to move it), x takes one out, + adds from the categories
+struct PlaylistEditor : juce::Component
+{
+    explicit PlaylistEditor(LoafBreakerProcessor& p) : proc(p) { list = proc.playlist(); setSize(460, 560); }
+    LoafBreakerProcessor& proc;
+    juce::StringArray list;
+    int drag = -1, hover = -1, top = 0;
+    static constexpr int ROWS = 18;
+    juce::Rectangle<int> row(int i) const { return { 12, 56 + i * 26, getWidth() - 24, 24 }; }
+    juce::Rectangle<int> addBtn() const { return { 12, 12, 200, 32 }; }
+    juce::Rectangle<int> clearBtn() const { return { 220, 12, 110, 32 }; }
+    void save() { proc.setPlaylist(list); repaint(); }
+    void paint(juce::Graphics& g) override
+    {
+        const auto& sk = ui::cur();
+        g.fillAll(sk.bg);
+        ui::button(g, addBtn().toFloat(), "+ AJOUTER DES BREAKS", false, false, 12.0f);
+        ui::button(g, clearBtn().toFloat(), "TOUT VIDER", false, false, 12.0f);
+        g.setColour(sk.dim);
+        g.setFont(ui::label(11.0f));
+        g.drawText("Glisser une ligne: la deplacer.  x: la retirer.  < > en haut: le break d'avant, d'apres.", 12, getHeight() - 26, getWidth() - 24, 18, juce::Justification::centredLeft);
+        for (int i = 0; i < ROWS && top + i < list.size(); ++i) {
+            const int k = top + i;
+            auto r = row(i);
+            g.setColour(k == drag ? sk.accent : k == hover ? sk.panel2.brighter(0.08f) : sk.panel2);
+            g.fillRect(r);
+            g.setColour(k == drag ? sk.bg : sk.ink);
+            g.setFont(ui::value(15.0f));
+            g.drawText(juce::String(k + 1) + ".", r.withWidth(36).translated(6, 0), juce::Justification::centredLeft);
+            g.setFont(ui::label(13.0f));
+            g.drawText(list[k], r.withTrimmedLeft(44), juce::Justification::centredLeft);
+            g.setColour(sk.dim);
+            g.drawText("x", r.withLeft(r.getRight() - 24), juce::Justification::centred);
+        }
+        if (list.isEmpty()) {
+            g.setColour(sk.dim);
+            g.setFont(ui::label(14.0f));
+            g.drawText("Vide: < > passent par tous les breaks.", getLocalBounds(), juce::Justification::centred);
+        }
+    }
+    int at(juce::Point<int> p) const { for (int i = 0; i < ROWS; ++i) if (row(i).contains(p) && top + i < list.size()) return top + i; return -1; }
+    void mouseMove(const juce::MouseEvent& e) override { hover = at(e.getPosition()); repaint(); }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        if (addBtn().contains(e.getPosition())) { addMenu(); return; }
+        if (clearBtn().contains(e.getPosition())) { list.clear(); save(); return; }
+        const int k = at(e.getPosition());
+        if (k < 0) return;
+        if (e.x > row(0).getRight() - 24) { list.remove(k); save(); return; }
+        drag = k;
+        repaint();
+    }
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (drag < 0) return;
+        const int k = juce::jlimit(0, list.size() - 1, top + (e.y - 56) / 26);
+        if (k != drag) { list.move(drag, k); drag = k; repaint(); }
+    }
+    void mouseUp(const juce::MouseEvent&) override { if (drag >= 0) { drag = -1; save(); } }
+    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
+    {
+        top = juce::jlimit(0, juce::jmax(0, list.size() - ROWS), top + (w.deltaY < 0 ? 2 : -2));
+        repaint();
+    }
+    void addMenu()
+    {
+        const auto all = proc.breaks();
+        static const char* ORDER[5] = { "FLEXOR", "CYBERWORM AMENS", "HUGE AMEN PACK", "CLASSICS", "MES BREAKS" };
+        juce::PopupMenu m;
+        for (int c = 0; c < 5; ++c) {
+            juce::PopupMenu sub;
+            int n = 0;
+            sub.addItem(10000 + c, "TOUS (" + juce::String(ORDER[c]) + ")");
+            sub.addSeparator();
+            for (int i = 0; i < (int) all.size(); ++i)
+                if (all[(size_t) i].cat == ORDER[c]) { sub.addItem(1 + i, all[(size_t) i].name, ! list.contains(all[(size_t) i].name)); n++; }
+            if (n) m.addSubMenu(ORDER[c], sub);
+        }
+        juce::Component::SafePointer<PlaylistEditor> self(this);
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this), [self, all](int r) {
+            if (! self || r == 0) return;
+            if (r >= 10000) {
+                for (auto& b : all) if (b.cat == ORDER[r - 10000] && ! self->list.contains(b.name)) self->list.add(b.name);
+            } else if (r <= (int) all.size())
+                self->list.addIfNotAlreadyThere(all[(size_t) r - 1].name);
+            self->save();
+        });
+    }
+};
+
+void LoafBreakerEditor::playlistEditor()
+{
+    juce::DialogWindow::LaunchOptions o;
+    o.content.setOwned(new PlaylistEditor(proc));
+    o.dialogTitle = "LOAF BREAKER - PLAYLIST DE BREAKS";
+    o.dialogBackgroundColour = ui::cur().bg;
+    o.escapeKeyTriggersCloseButton = true;
+    o.useNativeTitleBar = true;
+    o.resizable = false;
+    o.launchAsync();
+}
+
 void LoafBreakerEditor::toggleMachine()
 {
     showMachine = ! showMachine;
@@ -1529,17 +1841,7 @@ void LoafBreakerEditor::menu()
         if (r >= 100 && r < 200) { ui::setSkin(r - 100); self->root->repaint(); return; }
         if (r == 99) { ui::setSkin(ui::FOLLOW_FM1); self->root->repaint(); return; }
         if (r == 98) { self->persoEditor(); return; }
-        if (r == 1) {
-            juce::DialogWindow::LaunchOptions o;
-            o.content.setOwned(new KeyMapEditor());
-            o.dialogTitle = "LOAF BREAKER - CLAVIER";
-            o.dialogBackgroundColour = ui::cur().bg;
-            o.escapeKeyTriggersCloseButton = true;
-            o.useNativeTitleBar = true;
-            o.resizable = false;
-            o.launchAsync();
-            return;
-        }
+        if (r == 1) { self->keysEditor(); return; }
         if (r == 2) { self->toggleMachine(); return; }
         if (r == 3) { self->openManager(); return; }
         if (r == 205) { self->openManager(); return; }
@@ -1585,16 +1887,56 @@ void LoafBreakerEditor::menu()
 // the computer's keyboard: KeyMap's actions (turns and buttons on a press; slices, pads and SEL held)
 bool LoafBreakerEditor::keyPressed(const juce::KeyPress& k)
 {
-    int code = k.getKeyCode();
-    if (code >= 'A' && code <= 'Z') code += 'a' - 'A';
-    const int a = KeyMap::get().actionOf(code);
+    const int ctx = seqView() ? 1 : 2;   // (the grid's keys there, the menus' elsewhere; then everywhere's)
+    const int a = KeyMap::get().actionOf(k, ctx);
     if (a < 0) return false;
     const auto& act = KeyMap::get().actions()[(size_t) a];
-    if (act.kind == KeyAction::Turn && act.index == KeyAction::Tempo) proc.send(LoafBreakerProcessor::CmdTempo, 0, act.dir);
-    else if (act.kind == KeyAction::Turn) turn(act.index, act.dir);
-    else if (act.kind == KeyAction::Button && act.index != LB_SEL && act.index != LB_REC && ! k.getModifiers().isAnyModifierKeyDown())
-        tap(act.index);
+    switch (act.kind) {
+    case KeyAction::Turn:
+        if (act.index == KeyAction::Tempo) proc.send(LoafBreakerProcessor::CmdTempo, 0, act.dir);
+        else if (act.index == KeyAction::BreakStep) proc.breakStep(act.dir);
+        else turn(act.index, act.dir);
+        break;
+    case KeyAction::Button:
+        if (act.index != LB_SEL && act.index != LB_REC) tap(act.index);
+        break;
+    case KeyAction::Seq: root->seqp.command(act.index); break;
+    case KeyAction::Menu: root->menus.content.command(act.index); break;
+    case KeyAction::Nav: nav(act.index); break;
+    default: break;                      // (slices and pads: held, keyStateChanged)
+    }
     return true;
+}
+
+void LoafBreakerEditor::nav(int i)
+{
+    if (i >= KeyAction::NavDomain0 && i < KeyAction::NavDomain0 + NDOMS) { goDomain(i - KeyAction::NavDomain0); return; }
+    switch (i) {
+    case KeyAction::NavTabNext: turn(LB_SELECT, 1); break;
+    case KeyAction::NavTabPrev: turn(LB_SELECT, -1); break;
+    case KeyAction::NavSave: tap(LB_SAVE); toast("SAUVE"); break;
+    case KeyAction::NavUndo: proc.step(6, 0, 0, 0, 0); toast("ANNULE"); break;
+    case KeyAction::NavCopy: proc.step(7, 0, 0, 0, 0); toast("PATTERN COPIE"); break;
+    case KeyAction::NavPaste: proc.step(8, 0, 0, 0, 0); toast("PATTERN COLLE"); break;
+    case KeyAction::NavBreaks: breakMenu(); break;
+    case KeyAction::NavPlaylist: playlistEditor(); break;
+    case KeyAction::NavManager: openManager(); break;
+    case KeyAction::NavScreen: toggleMachine(); break;
+    case KeyAction::NavKeys: keysEditor(); break;
+    default: break;
+    }
+}
+
+void LoafBreakerEditor::keysEditor()
+{
+    juce::DialogWindow::LaunchOptions o;
+    o.content.setOwned(new KeyMapEditor());
+    o.dialogTitle = "LOAF BREAKER - CLAVIER";
+    o.dialogBackgroundColour = ui::cur().bg;
+    o.escapeKeyTriggersCloseButton = true;
+    o.useNativeTitleBar = true;
+    o.resizable = false;
+    o.launchAsync();
 }
 
 bool LoafBreakerEditor::keyStateChanged(bool)
@@ -1605,9 +1947,10 @@ bool LoafBreakerEditor::keyStateChanged(bool)
         const auto& act = km.actions()[a];
         const bool holdable = act.kind == KeyAction::White || act.kind == KeyAction::Black ||
                               (act.kind == KeyAction::Button && (act.index == LB_SEL || act.index == LB_REC));
-        const int code = km.keyOf((int) a);
-        if (! holdable || ! code) continue;
-        const bool down = juce::KeyPress::isKeyCurrentlyDown(code);
+        const auto& kp = km.keyOf((int) a);
+        if (! holdable || ! kp.isValid()) continue;
+        const bool down = juce::KeyPress::isKeyCurrentlyDown(kp.getKeyCode()) &&
+                          ! juce::ModifierKeys::getCurrentModifiers().isCommandDown() && ! juce::ModifierKeys::getCurrentModifiers().isCtrlDown();
         const bool was = heldKeys.count((int) a) > 0;
         if (down == was) continue;
         if (down) heldKeys.insert((int) a); else heldKeys.erase((int) a);

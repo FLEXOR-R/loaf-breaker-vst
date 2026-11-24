@@ -34,7 +34,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 9
+#define LB_ABI 10
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -58,6 +58,8 @@ LB_API uint32_t lb_flash_get(uint8_t *out, uint32_t n);   /* the saved objects a
 LB_API int lb_flash_set(const uint8_t *in, uint32_t n);   /* before lb_init */
 LB_API void lb_bank(const uint8_t *p, uint32_t n);   /* the break bank (breaks.bank), before lb_init; kept alive by the caller */
 LB_API int lb_breaks(void);
+LB_API int lb_break_name(int i, char *out, int cap);   /* break i's name (1), 0 none */
+LB_API void lb_break_go(int i);                       /* break i, as ALGORITHM asks for one */
 LB_API int lb_get(int what);                     /* 0 break, 1 breaks, 2 per-break bytes saved, 3 length, 4 rate */                      /* how many breaks there are */
 LB_API void lb_model(lb_model_t *m);
 /* the break playing: its waveform in n columns (peak 0..1, then low / mid / high energy 0..1, 4 floats a column), its

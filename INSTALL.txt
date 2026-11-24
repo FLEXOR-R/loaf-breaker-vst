@@ -17,6 +17,25 @@ CE QUE LA VERSION PC A EN PLUS DU FM-1
 - Les touches blanches et le split gardes pour chacun des 98 breaks.
 - Le delai DUB jusqu'a 2 secondes (toutes les valeurs a tous les tempos) ; une sortie 24 bits.
 
+LE CLAVIER (tout se change dans MENU > Clavier, ou CTRL+K)
+- F1 a F8 : LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM. TAB / SHIFT+TAB : l'onglet suivant, precedent.
+- ESPACE : PLAY. CTRL+S : sauver. CTRL+Z : annuler (pattern). CTRL+C / CTRL+V : copier, coller le pattern.
+- CTRL+B : la liste des breaks. C / V : break precedent, suivant (de la playlist). CTRL+P : la playlist.
+- CTRL+G : la gestion. F9 : l'apercu du FM-1. N / M : tempo -1 / +1.
+- Dans le sequenceur (PATTERN) : fleches pour se deplacer (SHIFT : un temps, CTRL : une mesure, DEBUT / FIN),
+  ENTREE pose ou enleve le pas, SUPPR l'enleve, ALT+HAUT/BAS les HITS (le break : sa slice), SHIFT+HAUT/BAS la note du
+  kick (le break : son pitch ; les autres : la chance), CTRL+HAUT/BAS la chance (le break : ses repetitions),
+  ALT+GAUCHE/DROITE le nudge (le break : a l'envers), [ et ] decalent toute la ligne d'un pas.
+- Dans les menus : HAUT / BAS choisissent un reglage (un cadre le montre), GAUCHE / DROITE changent sa valeur
+  (SHIFT : un grand pas), ENTREE ouvre sa liste.
+
+LES BREAKS
+- Clic sur le nom du break (en haut) : tous les breaks, par categorie comme sur le site (FLEXOR, CYBERWORM AMENS,
+  HUGE AMEN PACK, CLASSICS, et MES BREAKS) ; la playlist ; ajouter le break a la playlist.
+- < PLAYLIST > sous le nom : le break precedent, suivant de ta playlist (dans l'ordre que tu veux ; vide : tous les
+  breaks). Clic sur PLAYLIST : la ranger (glisser une ligne), en ajouter, en retirer. Elle est gardee avec le projet.
+- Les curseurs longs (filtres...) ont une zone OFF plus large, ombree ; double-clic : retour a OFF.
+
 LA GESTION : VST, BIBLIOTHEQUE DE KICKS, FM-1 (MENU > GESTION)
 - Trois colonnes : les 20 kicks, 64 patterns et 8 tracks de la VST ; ta bibliotheque de kicks sur le PC ; ceux du
   FM-1 (LIRE LE FM-1 en USB, FM-1 a l'arret, ou OUVRIR UNE SAUVEGARDE .BAK).

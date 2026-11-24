@@ -42,6 +42,7 @@ public:
     void (*sync)(int on) = nullptr;
     void (*bank)(const uint8_t* p, uint32_t n) = nullptr;
     int (*breaks)() = nullptr;
+    int (*get)(int what) = nullptr;
     void (*model)(lb_model_t* m) = nullptr;
     uint32_t (*wave)(float* cols, int n, float* slices, int* nslices) = nullptr;
     int (*keyIndex)(int black, int i) = nullptr;
@@ -54,9 +55,12 @@ public:
     uint32_t (*kickRender)(const uint8_t* blob, float* lr, uint32_t frames) = nullptr;
     uint32_t (*fm1PutKicks)(const uint8_t* fm1, uint32_t n, const uint8_t* blobs, const uint8_t* to, int nk, uint8_t* out, uint32_t cap) = nullptr;
     int (*vstPutKicks)(const uint8_t* blobs, const uint8_t* to, int nk) = nullptr;
+    int (*breakName)(int i, char* out, int cap) = nullptr;
+    void (*breakGo)(int i) = nullptr;
     int (*fm1Take)(const uint8_t* fm1, uint32_t n, const lb_pick_t* p, int np, char* rep, uint32_t rcap) = nullptr;
     // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance
     static const juce::MemoryBlock& bankFile();
+    static const std::map<juce::String, std::pair<juce::String, juce::String>>& breakIndex();
 
 private:
     std::unique_ptr<juce::DynamicLibrary> lib;

@@ -33,7 +33,7 @@ public:
     void setStateInformation(const void*, int) override;
 
     // the editor's side: commands queued for the audio thread, the screen and LEDs read back
-    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet };
+    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet, CmdBreak };
     void send(Cmd c, int a, int b);
     void step(int op, int a, int b, int c, int d);   // a sequencer edit (lb_step)
     // the page as menus (lb_scan, lb_options, lb_set): every part of the tab shown, each setting's values
@@ -68,6 +68,16 @@ public:
     bool listFm1(const juce::MemoryBlock* image, lb_list_t& out);   // nullptr: the VST's own
     bool putFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::MemoryBlock& out, juce::String& report);
     bool takeFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::String& report);
+    // the breaks (FLEXOR: "une playlist de break rangeable dans n'importe quel ordre ... next break et previous break ...
+    // une liste déroulante digeste avec des sous-menus"): each its name (the core's order), its category and title
+    // (breaks.index), the one playing; the project's playlist (names, in its order: saved with the project)
+    struct BreakInfo { juce::String name, cat, title; };
+    std::vector<BreakInfo> breaks();
+    int breakNow();
+    void breakGo(int i);
+    void breakStep(int dir);                     // the playlist's next / previous (none: every break, in order)
+    juce::StringArray playlist();
+    void setPlaylist(const juce::StringArray& names);
     // the kicks as blobs (the library: FLEXOR, "importer des kicks de la machine, les nommer et les ranger")
     juce::MemoryBlock kickRead(const juce::MemoryBlock* fm1, int k);     // empty: none (fm1 nullptr: the VST's)
     void kickHear(const juce::MemoryBlock& blob);                        // rendered alone, played over the output

@@ -104,6 +104,7 @@ void LoafBreakerProcessor::drainCommands()
         else if (it.cmd == CmdTempo) core.tempo(it.b);
         else if (it.cmd == CmdStep) { core.step(it.a, it.b, (uint8_t) it.c, it.d, it.e); patsWanted = true; }
         else if (it.cmd == CmdSet) { core.set(it.a, it.c, it.b); partsWanted = true; }
+        else if (it.cmd == CmdBreak) core.breakGo(it.b);
     };
     for (int i = 0; i < scope.blockSize1; ++i) run(cmdBuf[scope.startIndex1 + i]);
     for (int i = 0; i < scope.blockSize2; ++i) run(cmdBuf[scope.startIndex2 + i]);
@@ -605,6 +606,62 @@ bool LoafBreakerProcessor::takeFm1(const juce::MemoryBlock& fm1, const std::vect
     }
     boot();                              // a fresh core with them
     return true;
+}
+
+std::vector<LoafBreakerProcessor::BreakInfo> LoafBreakerProcessor::breaks()
+{
+    std::vector<BreakInfo> v;
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded())
+        return v;
+    const auto& idx = Core::breakIndex();
+    const int n = core.breaks();
+    for (int i = 0; i < n; ++i) {
+        char t[32] = {};
+        core.breakName(i, t, sizeof t);
+        BreakInfo b { juce::String(t).trim(), "MES BREAKS", {} };   // (not in the index: the player's own)
+        auto it = idx.find(b.name);
+        if (it != idx.end()) { b.cat = it->second.first; b.title = it->second.second; }
+        v.push_back(b);
+    }
+    return v;
+}
+
+int LoafBreakerProcessor::breakNow()
+{
+    const juce::ScopedLock sl(lock);
+    return ready && core.loaded() ? core.get(0) : -1;
+}
+
+void LoafBreakerProcessor::breakGo(int i) { send(CmdBreak, 0, i); }
+
+juce::StringArray LoafBreakerProcessor::playlist()
+{
+    return juce::StringArray::fromTokens(params.state.getProperty("playlist").toString(), "|", "");
+}
+
+void LoafBreakerProcessor::setPlaylist(const juce::StringArray& names)
+{
+    params.state.setProperty("playlist", names.joinIntoString("|"), nullptr);
+}
+
+void LoafBreakerProcessor::breakStep(int dir)
+{
+    const auto all = breaks();
+    const int now = breakNow();
+    if (all.empty() || now < 0) return;
+    const auto pl = playlist();
+    std::vector<int> order;                  // the playlist's breaks the bank has, in its order (none: every break)
+    for (auto& n : pl)
+        for (int i = 0; i < (int) all.size(); ++i)
+            if (all[(size_t) i].name == n) { order.push_back(i); break; }
+    if (order.empty())
+        for (int i = 0; i < (int) all.size(); ++i) order.push_back(i);
+    int at = -1;
+    for (int k = 0; k < (int) order.size(); ++k) if (order[(size_t) k] == now) at = k;
+    const int m = (int) order.size();
+    const int next = at < 0 ? (dir > 0 ? 0 : m - 1) : ((at + dir) % m + m) % m;
+    breakGo(order[(size_t) next]);
 }
 
 juce::MemoryBlock LoafBreakerProcessor::kickRead(const juce::MemoryBlock* fm1, int k)
