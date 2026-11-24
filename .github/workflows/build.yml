@@ -81,7 +81,7 @@ jobs:
         run: |
           FW="$(git ls-tree HEAD firmware | awk '{print $3}')"
           V="$(git ls-remote --tags https://github.com/FLEXOR-R/loaf-breaker.git 'refs/tags/loaf-v*' | grep "^$FW" \
-               | sed 's|.*refs/tags/loaf-v||; s|\^{}$||' | head -1)"
+               | sed 's|.*refs/tags/loaf-v||; s|\^{}$||' | head -1 || true)"
           [ -n "$V" ] || V="dev-${FW:0:7}"
           [ "$GITHUB_REF_NAME" = release ] || V="$V-test${{ github.run_number }}"
           echo "VERSION=$V" >> "$GITHUB_ENV"
