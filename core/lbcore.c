@@ -9,11 +9,19 @@ uint32_t lb_bank_len;
 void lb_bank(const uint8_t *p, uint32_t n) { lb_bank_ptr = n >= 16u ? p : 0; lb_bank_len = n; }
 int lb_abi(void) { return LB_ABI; }
 static uint32_t lb_now;
+static int32_t lb_nav[3];                /* SELECT, ALGORITHM, PRESET: detents still to hand over, one at a time (the
+                                          * pages move a tab a reading, whatever its count) */
 void lb_ms(int frame)
 {
     /* the first start's question (tutor.c TUT_ASK): EXPERT, white key 3, as a player would (the VST starts EXPERT) */
     if (set.tut == 0xFDu && !ui.lobo_t && !ui.intro && lb_now & 1u)   /* (a tap every other ms: a key going down) */
         rf_panel.keys_tap |= 1u << WK[2];
+    for (int r = 0; r < 3; r++)          /* (the last one read by the app: the next) */
+        if (lb_nav[r] && !enc_acc[r] && !rf_panel.enc[rf_panel.enc_id[r]]) {
+            int32_t s = lb_nav[r] > 0 ? 1 : -1;
+            lb_nav[r] -= s;
+            rf_panel.enc[rf_panel.enc_id[r]] += s * rf_panel.enc_dir[r];
+        }
     rf_tick(++lb_now);
     if (frame)
         rf_frame();
@@ -88,7 +96,24 @@ void lb_turn(int role, int detents)
 {
     if (role < 0 || role >= RF_NE - 1)
         return;
-    rf_panel.enc[rf_panel.enc_id[role]] += detents * rf_panel.enc_dir[role];
+    if (role < 3)
+        lb_nav[role] += detents;
+    else
+        rf_panel.enc[rf_panel.enc_id[role]] += detents * rf_panel.enc_dir[role];
+}
+void lb_tempo(int detents)
+{
+    char t[16];
+    if (!detents)
+        return;
+    if (ext_active()) {                  /* (the host's clock has the tempo) */
+        app_say("TEMPO", "EXT CLOCK");
+        return;
+    }
+    set.tempo_x10 = (uint16_t)clamp((int32_t)set.tempo_x10 + detents * 10, 400, 3000);
+    changed();
+    tenths_text(set.tempo_x10, t);
+    app_say("BPM", t);
 }
 void lb_master(int v) { rf_panel.master = v < 0 ? 0 : v > 1023 ? 1023 : v; }
 uint32_t lb_screen(uint16_t *px)

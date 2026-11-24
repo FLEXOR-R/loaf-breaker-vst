@@ -22,6 +22,8 @@ KeyMap::KeyMap()
         list.push_back({ KeyAction::Turn, e, -1, juce::String(EN[e]) + " -" });
         list.push_back({ KeyAction::Turn, e, +1, juce::String(EN[e]) + " +" });
     }
+    list.push_back({ KeyAction::Turn, KeyAction::Tempo, -1, "TEMPO -" });   // (the header's tempo, 1 BPM)
+    list.push_back({ KeyAction::Turn, KeyAction::Tempo, +1, "TEMPO +" });
     keys.assign(list.size(), 0);
     defaults();
     const auto saved = ui::settings().getUserSettings()->getValue("keys");
@@ -50,6 +52,7 @@ void KeyMap::defaults()
         if (k.kind == KeyAction::Button && k.index == LB_SAVE) keys[a] = 'x';
         if (k.kind == KeyAction::Turn && k.index == LB_SELECT) keys[a] = k.dir > 0 ? juce::KeyPress::downKey : juce::KeyPress::upKey;
         if (k.kind == KeyAction::Turn && k.index == LB_ALGO) keys[a] = k.dir > 0 ? juce::KeyPress::rightKey : juce::KeyPress::leftKey;
+        if (k.kind == KeyAction::Turn && k.index == KeyAction::Tempo) keys[a] = k.dir > 0 ? 'm' : 'n';
         if (k.kind == KeyAction::Turn && k.index == LB_PRESET) keys[a] = k.dir > 0 ? juce::KeyPress::pageDownKey : juce::KeyPress::pageUpKey;
     }
     save();

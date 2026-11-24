@@ -5,6 +5,7 @@
 
 struct KeyAction {
     enum Kind { White, Black, Button, Turn };
+    enum { Tempo = 7 };                  // Turn: the tempo, not an encoder
     Kind kind;
     int index;                           // the slice, the pad, the button (LB_*), the encoder (LB_*)
     int dir;                             // Turn: +1 / -1

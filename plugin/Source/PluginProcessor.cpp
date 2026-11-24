@@ -93,6 +93,7 @@ void LoafBreakerProcessor::drainCommands()
         if (it.cmd == CmdButton) core.button(it.a, it.b);
         else if (it.cmd == CmdKey) core.key(it.a, it.b != 0, it.b > 0 ? it.b : 100);
         else if (it.cmd == CmdTurn) core.turn(it.a, it.b);
+        else if (it.cmd == CmdTempo) core.tempo(it.b);
     };
     for (int i = 0; i < scope.blockSize1; ++i) run(cmdBuf[scope.startIndex1 + i]);
     for (int i = 0; i < scope.blockSize2; ++i) run(cmdBuf[scope.startIndex2 + i]);

@@ -24,6 +24,7 @@ public:
     void (*button)(int b, int down) = nullptr;
     void (*key)(int k, int down, int vel) = nullptr;
     void (*turn)(int role, int detents) = nullptr;
+    void (*tempo)(int detents) = nullptr;
     void (*master)(int v) = nullptr;
     uint32_t (*screen)(uint16_t* rgb565) = nullptr;
     uint32_t (*leds)(uint8_t* out, uint32_t n) = nullptr;

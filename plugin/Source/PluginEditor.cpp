@@ -52,7 +52,30 @@ struct Header : Part
         addAndMakeVisible(*sync);
     }
     std::unique_ptr<PixButton> play, menu, sync;
-    float vl = 0, vr = 0, hl = 0, hr = 0;
+    float vl = 0, vr = 0, hl = 0, hr = 0, tdrag = 0.0f;
+    bool tempoHover = false, tempoDrag = false;
+    // the tempo: dragged up / down or the wheel, 1 BPM a step (SELECT never touches it in the VST)
+    static juce::Rectangle<float> tempoArea() { return { 500, 8, 136, 64 }; }
+    void tempo(int n) { if (n) ed.proc.send(LoafBreakerProcessor::CmdTempo, 0, n); }
+    void mouseMove(const juce::MouseEvent& e) override
+    {
+        const bool h = tempoArea().contains(e.position);
+        if (h != tempoHover) { tempoHover = h; setMouseCursor(h ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor); repaint(); }
+    }
+    void mouseExit(const juce::MouseEvent&) override { if (tempoHover) { tempoHover = false; setMouseCursor(juce::MouseCursor::NormalCursor); repaint(); } }
+    void mouseDown(const juce::MouseEvent& e) override { tempoDrag = tempoArea().contains(e.position); tdrag = 0.0f; }
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (! tempoDrag) return;
+        const float y = (float) -e.getDistanceFromDragStartY();
+        const int n = (int) ((y - tdrag) / 6.0f);
+        if (n != 0) { tdrag += n * 6.0f; tempo(n); }
+    }
+    void mouseUp(const juce::MouseEvent&) override { tempoDrag = false; }
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
+    {
+        if (tempoArea().contains(e.position)) tempo(w.deltaY > 0 ? 1 : w.deltaY < 0 ? -1 : 0);
+    }
     void resized() override
     {
         play->setBounds(380, 18, 110, 48);
@@ -82,7 +105,8 @@ struct Header : Part
         const auto& m = ed.m;
         g.setColour(sk.dim);
         g.setFont(ui::label(11.0f));
-        g.drawText("TEMPO", 510, 14, 120, 12, juce::Justification::centredLeft);
+        g.drawText(tempoHover ? "TEMPO  (GLISSER)" : "TEMPO", 510, 14, 120, 12, juce::Justification::centredLeft);
+        if (tempoHover) { g.setColour(sk.line); g.drawRect(tempoArea(), 1.0f); }
         g.setColour(sk.hot);
         g.setFont(ui::value(46.0f));
         g.drawText(juce::String(m.bpm, 1), 506, 24, 130, 44, juce::Justification::centredLeft);
@@ -721,7 +745,8 @@ bool LoafBreakerEditor::keyPressed(const juce::KeyPress& k)
     const int a = KeyMap::get().actionOf(code);
     if (a < 0) return false;
     const auto& act = KeyMap::get().actions()[(size_t) a];
-    if (act.kind == KeyAction::Turn) turn(act.index, act.dir);
+    if (act.kind == KeyAction::Turn && act.index == KeyAction::Tempo) proc.send(LoafBreakerProcessor::CmdTempo, 0, act.dir);
+    else if (act.kind == KeyAction::Turn) turn(act.index, act.dir);
     else if (act.kind == KeyAction::Button && act.index != LB_SEL && act.index != LB_REC && ! k.getModifiers().isAnyModifierKeyDown())
         tap(act.index);
     return true;

@@ -33,7 +33,7 @@ public:
     void setStateInformation(const void*, int) override;
 
     // the editor's side: commands queued for the audio thread, the screen and LEDs read back
-    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn };
+    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo };
     void send(Cmd c, int a, int b);
     bool screenIfNew(uint32_t& serial, uint16_t* dst);   // the 240 x 240 screen (RGB565), when it changed
     void ledsCopy(uint8_t* dst, size_t n);

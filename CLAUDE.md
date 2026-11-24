@@ -47,7 +47,10 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   four knobs named as the page's (lb_model: knob_name / knob_value / foot_norm; SEL's when SHIFT is held), the FM-1's
   screen (optional), the output's scope, the 12 performance pads named as the layout's functions and the 16 slice
   pads, each with its key. The model: lbcore.c `lb_model`, the tabs and part noted as the firmware draws them
-  (app/ui/main.c `lb_cap_tab` / `lb_cap_part`, LB_BIG only). KeyMap.cpp: every action a key, the settings' CLAVIER.
+  (app/ui/main.c `lb_cap_tab` / `lb_cap_part`, LB_BIG only). KeyMap.cpp: every action a key, the settings' CLAVIER. The tempo (FLEXOR: "certaines commandes ... montent le BPM"): the header's
+  number dragged or the wheel, TEMPO - / + (N, M), lb_tempo; SELECT never the tempo here (the firmware's LB_BIG: HOME's
+  tabs, nothing elsewhere); SELECT, ALGORITHM and PRESET handed over a detent at a time (lbcore `lb_nav`: the pages
+  move a tab a reading).
   Next: page-specific panels (the sequencer's grid, the kick's picture, the song), more visuals.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
