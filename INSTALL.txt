@@ -1,0 +1,19 @@
+LOAF BREAKER VST (Windows)
+
+INSTALLER LE VST3 (Ableton, FL Studio...)
+1. Copie le dossier "VST3\LOAF BREAKER.vst3" (tout le dossier) dans :
+   C:\Program Files\Common Files\VST3\
+2. Dans Ableton : Options > Preferences > Plug-ins, "Use VST3 Plug-in System Folders" sur On, puis "Rescan".
+3. LOAF BREAKER apparait dans Plug-ins > VST3 > FLEXOR. Glisse-le sur une piste MIDI.
+
+LA VERSION AUTONOME (sans Ableton)
+Ouvre "Standalone\LOAF BREAKER.exe" (garde lbcore.dll a cote). Windows peut afficher un avertissement
+("Windows a protege votre ordinateur") : Informations complementaires > Executer quand meme. Le programme
+n'est pas signe, c'est normal pour une version de test.
+
+DANS ABLETON
+- LOAF BREAKER suit le tempo d'Ableton et demarre a la mesure suivante quand tu lances la lecture
+  (case "Host sync" en haut ; decoche-la pour utiliser son propre PLAY).
+- Les notes MIDI : 48 a 63 (C3 a D#4) jouent les slices, 36 le kick, 38 la snare, 39 le clap, 42 le hat.
+- La sauvegarde du projet Ableton garde tout (kicks, patterns, splits, chaos...).
+- Clavier de l'ordinateur : ESPACE = PLAY ; les lettres jouent les touches (affichees dessus).
