@@ -26,11 +26,14 @@ juce_add_plugin(LoafBreaker
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Drum
     FORMATS ${FORMATS})
-target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp)
+juce_add_binary_data(LoafAssets SOURCES Resources/Silkscreen-Regular.ttf Resources/Silkscreen-Bold.ttf
+    Resources/VT323-Regular.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
+target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp
+    Source/Ui.cpp Source/KeyMap.cpp)
 target_include_directories(LoafBreaker PRIVATE ../core)
 target_compile_definitions(LoafBreaker PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0)
-target_link_libraries(LoafBreaker PRIVATE juce::juce_audio_utils juce::juce_dsp
+target_link_libraries(LoafBreaker PRIVATE LoafAssets juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 # the host's check (Test/HostTest.cpp): lbtest PATH.vst3 OUT.wav

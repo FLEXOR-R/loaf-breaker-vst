@@ -4,6 +4,7 @@
 #pragma once
 #include <juce_core/juce_core.h>
 #include <cstdint>
+#include "lbcore.h"
 
 class Core
 {
@@ -34,6 +35,9 @@ public:
     void (*sync)(int on) = nullptr;
     void (*bank)(const uint8_t* p, uint32_t n) = nullptr;
     int (*breaks)() = nullptr;
+    void (*model)(lb_model_t* m) = nullptr;
+    uint32_t (*wave)(float* cols, int n, float* slices, int* nslices) = nullptr;
+    int (*keyIndex)(int black, int i) = nullptr;
     uint32_t (*fm1Export)(uint8_t* out, uint32_t cap, char* report, uint32_t rcap) = nullptr;
     int (*fm1Import)(const uint8_t* img, uint32_t n, char* report, uint32_t rcap) = nullptr;
     // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance

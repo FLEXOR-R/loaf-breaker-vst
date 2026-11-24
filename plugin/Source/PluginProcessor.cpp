@@ -43,6 +43,9 @@ bool LoafBreakerProcessor::boot()
     core.init(5000);                     // the start screen run through silently (5 s of the core's time)
     core.master(1023);
     nBreaks = core.breaks();
+    for (int i = 0; i < 16; ++i) whiteKey[i] = core.keyIndex(0, i);
+    for (int i = 0; i < 11; ++i) blackKey[i] = core.keyIndex(1, i);
+    coreWaveSerial = 0;
     core.sync(1);
     coreFrames = 0;
     coreMsDone = 0;
@@ -112,6 +115,23 @@ void LoafBreakerProcessor::coreMs()
             }
         }
         playingNow = core.playing();
+        if ((coreMsDone / 15u) % 2u == 0u) {   // the page's model, every other frame (30 a second)
+            const juce::SpinLock::ScopedTryLockType tl(screenLock);
+            if (tl.isLocked()) {
+                core.model(&modelBuf);
+                modelSerial++;
+                const uint32_t ws = core.wave(nullptr, 0, nullptr, nullptr);
+                if (ws != coreWaveSerial) {   // another break: its waveform, once
+                    float sl[32];
+                    int ns = 0;
+                    waveBuf.cols.resize(4 * WAVE_COLS);
+                    core.wave(waveBuf.cols.data(), WAVE_COLS, sl, &ns);
+                    waveBuf.slices.assign(sl, sl + ns);
+                    waveBuf.serial = ws;
+                    coreWaveSerial = ws;
+                }
+            }
+        }
     }
 }
 
@@ -245,6 +265,20 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         }
         done = until;
     }
+    {                                    // the meters and the scope
+        float pl = 0.0f, pr = 0.0f;
+        int at = scopeAt.load();
+        for (int i = 0; i < n; ++i) {
+            const float a = outL[i], b = outR ? outR[i] : a;
+            pl = juce::jmax(pl, std::abs(a));
+            pr = juce::jmax(pr, std::abs(b));
+            scopeRing[(size_t) at] = 0.5f * (a + b);
+            at = (at + 1) % (int) scopeRing.size();
+        }
+        scopeAt = at;
+        peakL = juce::jmax(peakL.load(), pl);
+        peakR = juce::jmax(peakR.load(), pr);
+    }
     uint32_t pkt;
     while (core.midiOut(&pkt))           // (the core's MIDI out: not passed on yet)
         ;
@@ -274,6 +308,39 @@ void LoafBreakerProcessor::idlePump()
         fifoN = 0;
         left -= m;
     }
+}
+
+bool LoafBreakerProcessor::modelIfNew(uint32_t& serial, lb_model_t& out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == modelSerial)
+        return false;
+    out = modelBuf;
+    serial = modelSerial;
+    return true;
+}
+
+bool LoafBreakerProcessor::waveIfNew(uint32_t& serial, WaveView& out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == waveBuf.serial || waveBuf.cols.empty())
+        return false;
+    out = waveBuf;
+    serial = waveBuf.serial;
+    return true;
+}
+
+void LoafBreakerProcessor::meters(float& l, float& r)
+{
+    l = peakL.exchange(0.0f);
+    r = peakR.exchange(0.0f);
+}
+
+void LoafBreakerProcessor::scope(float* out, int n)
+{
+    const int sz = (int) scopeRing.size(), at = scopeAt.load();
+    for (int i = 0; i < n; ++i)
+        out[i] = scopeRing[(size_t) ((at - n + i + sz * 2) % sz)];
 }
 
 bool LoafBreakerProcessor::screenIfNew(uint32_t& serial, uint16_t* dst)

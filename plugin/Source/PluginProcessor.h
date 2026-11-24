@@ -38,6 +38,14 @@ public:
     bool screenIfNew(uint32_t& serial, uint16_t* dst);   // the 240 x 240 screen (RGB565), when it changed
     void ledsCopy(uint8_t* dst, size_t n);
     juce::String status() const;
+    // the new interface's data, copied on the audio thread (never waiting for it)
+    static constexpr int WAVE_COLS = 1024;
+    struct WaveView { std::vector<float> cols; std::vector<float> slices; uint32_t serial = 0; };
+    bool modelIfNew(uint32_t& serial, lb_model_t& out);
+    bool waveIfNew(uint32_t& serial, WaveView& out);
+    void meters(float& l, float& r);     // the output's peaks since the last call
+    void scope(float* out, int n);       // the last n output samples (mono)
+    int keyIndex(bool black, int i) const { return black ? blackKey[i % 11] : whiteKey[i % 16]; }
     void idlePump();                     // the editor's timer: the core run silently while no audio runs
 
     juce::AudioProcessorValueTreeState params;
@@ -88,6 +96,14 @@ private:
     std::atomic<int> playingNow { 0 };
     std::atomic<int> nBreaks { 0 };
     int msSinceScreen = 0;
+    lb_model_t modelBuf {};
+    uint32_t modelSerial = 0;
+    WaveView waveBuf;
+    uint32_t coreWaveSerial = 0;
+    std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
+    std::vector<float> scopeRing = std::vector<float>(4096, 0.0f);
+    std::atomic<int> scopeAt { 0 };
+    int whiteKey[16] {}, blackKey[11] {};
     std::atomic<double> lastAudioMs { 0.0 };
     double idleFrom = 0.0;
 

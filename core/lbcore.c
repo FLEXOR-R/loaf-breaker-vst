@@ -137,3 +137,136 @@ LB_API int lb_get(int what)
     }
     return -1;
 }
+
+/* ------------------------------------------------- the VST's own interface: the page's model (lb_model) --- */
+static lb_model_t *lb_cap;               /* (the model being filled while draw_tabs runs; 0 otherwise) */
+static void lb_copy(char *d, const char *s, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; s && s[i] && i + 1u < n; i++)
+        d[i] = s[i];
+    d[i] = 0;
+}
+static void lb_cap_tab(const char *s, int on)
+{
+    if (!lb_cap || lb_cap->ntabs >= LB_TABS)
+        return;
+    lb_copy(lb_cap->tabs[lb_cap->ntabs], s, sizeof lb_cap->tabs[0]);
+    if (on)
+        lb_cap->tab_on = lb_cap->ntabs;
+    lb_cap->ntabs++;
+}
+static void lb_cap_part(const char *label, const char *part)
+{
+    if (!lb_cap)
+        return;
+    lb_copy(lb_cap->label, label, sizeof lb_cap->label);
+    lb_copy(lb_cap->part, part, sizeof lb_cap->part);
+}
+void lb_model(lb_model_t *m)
+{
+    brk_status_t st;
+    uint32_t i;
+    char t[24];
+    memset(m, 0, sizeof *m);
+    m->tab_on = -1;
+    lb_copy(m->dom, dom_name(), sizeof m->dom);
+    lb_cap = m;
+    draw_tabs();                         /* (the tab strip again: its tabs and part noted; the same pixels) */
+    lb_cap = 0;
+    if (!m->part[0] && (ui.page == PG_KICK || ui.page == PG_KEQ || IS_KFX()) && !kick_easy())
+        kick_part_name(kick_part(), m->part);   /* (the screen leaves it out when the tabs take the room) */
+    else if (!m->part[0] && ui.page == PG_PERC && !set.novice)
+        lb_copy(m->part, PPAGE_NAME[perc_pg()], sizeof m->part);
+    brk_status(&st);
+    m->sel = ui.sel_foot != 0;
+    for (i = 0; i < 4u; i++) {
+        t[0] = 0;
+        if (m->sel) {
+            lb_copy(m->kname[i], SK_NAME[selk_fn(i)], sizeof m->kname[i]);
+            selk_value(selk_fn(i), 0, t);
+            m->knorm[i] = -1.0f;
+        } else {
+            lb_copy(m->kname[i], knob_name((int)i), sizeof m->kname[i]);
+            knob_value((int)i, t);
+            m->knorm[i] = foot_norm((int)i);
+        }
+        lb_copy(m->kval[i], t, sizeof m->kval[i]);
+    }
+    for (i = 0; i < 12u; i++) {
+        uint32_t f = bk_fn_shown(i);
+        if (i == 11u && !rec_key_on()) {
+            lb_copy(m->pad[i], "REC", sizeof m->pad[i]);
+            lb_copy(m->padlong[i], "RECORD", sizeof m->padlong[i]);
+            m->padon[i] = ui.rec != 0;
+            continue;
+        }
+        lb_copy(m->pad[i], BKF_NAME[f % BKF_N], sizeof m->pad[i]);
+        lb_copy(m->padlong[i], BKF_LONG[f % BKF_N], sizeof m->padlong[i]);
+        m->padon[i] = f == BKF_ARP && i < 11u ? arpk_on(i) : bkf_lit(f, &st);
+    }
+    m->playing = playing_now();
+    m->step = st.step;
+    m->bar16 = st.bar16;
+    m->slice = st.slice;
+    m->key = st.key;
+    m->pos = st.pos;
+    m->page = ui.page;
+    m->novice = set.novice;
+    m->bpm = (float)set.tempo_x10 * 0.1f;
+    m->pattern = (int)pat_cur() + 1;
+    lb_copy(m->brk, break_name(set.brk), sizeof m->brk);
+    if (plat_ms() < ui.msg_until) {
+        lb_copy(m->say[0], ui.msg[0], sizeof m->say[0]);
+        lb_copy(m->say[1], ui.msg[1], sizeof m->say[1]);
+    }
+    m->say_n = ui.msg_until;
+}
+
+/* the break playing's waveform: n columns, each its peak and its low / mid / high energy (one-pole splits, as the
+ * strip's wave_build does), normalised; its slices' starts in 0..1 */
+uint32_t lb_wave(float *cols, int n, float *slices, int *nslices)
+{
+    static uint32_t serial;
+    static const int16_t *was_pcm;
+    static uint32_t was_len;
+    const brk_break_t *b = brk_get_break();
+    uint32_t i, c;
+    float lp1 = 0.0f, lp2 = 0.0f, mx[4] = {1e-9f, 1e-9f, 1e-9f, 1e-9f};
+    if (!b || !b->len)
+        return serial;
+    if (b->pcm != was_pcm || b->len != was_len) {
+        was_pcm = b->pcm, was_len = b->len;
+        serial++;
+    }
+    if (!cols || n <= 0)                 /* (the serial alone: has the break changed) */
+        return serial;
+    for (c = 0; c < (uint32_t)n; c++) {
+        uint32_t a = (uint32_t)((uint64_t)b->len * c / (uint32_t)n), z = (uint32_t)((uint64_t)b->len * (c + 1u) / (uint32_t)n);
+        float pk = 0.0f, lo = 0.0f, mi = 0.0f, hi = 0.0f;
+        for (i = a; i < z; i++) {
+            float x = (float)b->pcm[i] * (1.0f / 32768.0f), ax = x < 0.0f ? -x : x;
+            lp1 += (x - lp1) * 0.03f;    /* (~200 Hz) */
+            lp2 += (x - lp2) * 0.25f;    /* (~2 kHz) */
+            if (ax > pk) pk = ax;
+            lo += lp1 * lp1;
+            mi += (lp2 - lp1) * (lp2 - lp1);
+            hi += (x - lp2) * (x - lp2);
+        }
+        if (z > a) {
+            lo = sqrtf(lo / (float)(z - a)), mi = sqrtf(mi / (float)(z - a)), hi = sqrtf(hi / (float)(z - a));
+        }
+        cols[4 * c] = pk, cols[4 * c + 1] = lo, cols[4 * c + 2] = mi, cols[4 * c + 3] = hi;
+        for (i = 0; i < 4u; i++)
+            if (cols[4 * c + i] > mx[i]) mx[i] = cols[4 * c + i];
+    }
+    for (c = 0; c < (uint32_t)n; c++)
+        for (i = 0; i < 4u; i++)
+            cols[4 * c + i] /= mx[i];
+    *nslices = (int)(b->nslices < 32u ? b->nslices : 32u);
+    for (i = 0; i < (uint32_t)*nslices; i++)
+        slices[i] = (float)b->slice[i] / (float)b->len;
+    return serial;
+}
+
+int lb_key_index(int black, int i) { return black ? (i >= 0 && i < 11 ? BK[i] : -1) : (i >= 0 && i < 16 ? WK[i] : -1); }

@@ -33,9 +33,21 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   becomes the firmware's MIDI clock in (start at the next 4/4 bar, 24 ticks a beat, stop: hostClock), host MIDI goes in
   as USB-MIDI packets (48..63 slices, 36/38/39/42 drums). State: the firmware's flash image after lb_save (SAVE),
   gzipped, plus the parameters (volume, sync).
-- The window (step 1): the FM-1's screen x2 and its whole panel (14 buttons, 7 encoders, 27 keys; the computer's keys,
-  space PLAY). Step 2 (planned with FLEXOR): a PC interface (big sequencer, kick, breaks by drag and drop, song),
-  separate outputs, automation, MIDI drag to the DAW, the FM-1 as a controller.
+- The window (24 Nov 2026, FLEXOR: "une refonte complète ... changer complètement de style et de façon d'être
+  contrôlée ... des contrôles contextuels qui affichent ce qu'ils modifient ... des catégories qui contiennent des
+  onglets ... la waveform en permanence, des visuels"; the FM-1 link set aside, "laisse tomber la liaison"): drawn at
+  1440 x 900, scaled to the window (PluginEditor.cpp Root). LOAF LORD's look (Ui.cpp: skins LOAF LORD black and bone,
+  the default, BLOOD TOXIC ICE RUST PAPER; Silkscreen and VT323, OFL, in Resources/; the grain and halftone tile, the
+  vignette; his face and gothic title, Resources/loaflord_*.png from FLEXOR's poster). Header (tempo, break, pattern,
+  the FM-1's message, meters, MENU: skin, keyboard, the FM-1's screen on / off, the machine link), the categories
+  (LIVE SOUNDS PATTERN SONG MIX EFFECTS ARP SYSTEM: the FM-1's page buttons), the page's tabs (a click: SELECT turned
+  by the difference; SOUNDS: KICK DRUMS BREAK, SEL + EDIT until there) and its part (< >: ALGORITHM), the break's
+  waveform always (lb_wave: 1024 columns, peak and three bands; slices, playhead, 32 steps; a click plays a slice), the
+  four knobs named as the page's (lb_model: knob_name / knob_value / foot_norm; SEL's when SHIFT is held), the FM-1's
+  screen (optional), the output's scope, the 12 performance pads named as the layout's functions and the 16 slice
+  pads, each with its key. The model: lbcore.c `lb_model`, the tabs and part noted as the firmware draws them
+  (app/ui/main.c `lb_cap_tab` / `lb_cap_part`, LB_BIG only). KeyMap.cpp: every action a key, the settings' CLAVIER.
+  Next: page-specific panels (the sequencer's grid, the kick's picture, the song), more visuals.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

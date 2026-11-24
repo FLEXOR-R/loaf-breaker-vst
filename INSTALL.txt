@@ -29,6 +29,13 @@ LE LIEN AVEC LE FM-1 (bouton FM-1, en haut)
 - "Exporter / Importer une sauvegarde (.bak)" : la meme chose en fichier ; la page Backup du site LOAF BREAKER
   les envoie aussi au FM-1 depuis Chrome.
 
+L'INTERFACE
+- En haut : les categories (LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM), puis les onglets de la
+  categorie, puis la partie (< >). Les 4 knobs disent ce qu'ils reglent sur la page ouverte.
+- La waveform du break est toujours visible : clique une slice pour la jouer.
+- SHIFT (maintenu) : les knobs deviennent ceux de SEL.
+- MENU : le skin (LOAF LORD par defaut), le clavier (chaque touche reglable), l'ecran du FM-1 (a afficher ou non).
+
 DANS ABLETON
 - LOAF BREAKER suit le tempo d'Ableton et demarre a la mesure suivante quand tu lances la lecture
   (case "Host sync" en haut ; decoche-la pour utiliser son propre PLAY).
