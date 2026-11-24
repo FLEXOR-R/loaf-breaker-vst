@@ -333,7 +333,7 @@ void LoafBreakerProcessor::setStateInformation(const void* data, int size)
         params.replaceState(juce::ValueTree::fromXml(*x));
     const auto zn = in.readInt64();
     juce::MemoryBlock z;
-    in.readIntoMemoryBlock(z, (ssize_t) zn);
+    in.readIntoMemoryBlock(z, (juce::ssize) zn);
     juce::MemoryInputStream zi(z, false);
     juce::GZIPDecompressorInputStream gz(zi);
     juce::MemoryBlock flash;

@@ -21,6 +21,14 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   separate outputs, automation, MIDI drag to the DAW, the FM-1 as a controller.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
-- CI `.github/workflows/build.yml`: push to main -> core on Linux, plugin on Windows, pre-release `build-N` with
-  LOAF-BREAKER-VST-N-Windows.zip (INSTALL.txt as LISEZ-MOI.txt). Private repo: Actions minutes are limited (Windows
-  counts double): don't push trivial changes one by one.
+- **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours
+  d'abord s'occuper de la fm1, me demander si il faut publier, et ensuite faire les modifs et possiblement la
+  publication de la vst"): a change is made in the firmware (FLEXOR-R/loaf-breaker, dev, its TEST) first; then ask
+  FLEXOR whether to publish it (his "publie": the firmware's release, as its CLAUDE.md says); then the VST: the
+  `firmware` submodule moved to that commit (the released one: the loaf-vA.B.C tag's), the VST's own changes, pushed
+  to main (a TEST), and published only if FLEXOR wants (`git push origin main:release`). The VST's version is the
+  firmware's it carries (vst-vA.B.C = loaf-vA.B.C).
+- CI `.github/workflows/build.yml`: main -> TEST (pre-release `vst-test`, replaced each push,
+  LOAF-BREAKER-VST-A.B.C-testN-Windows.zip); release -> `vst-vA.B.C`. Core on Linux, plugin on Windows; INSTALL.txt as
+  LISEZ-MOI.txt. Private repo: Actions minutes are limited (Windows counts double): don't push trivial changes one by
+  one.

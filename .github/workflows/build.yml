@@ -1,11 +1,13 @@
-# LOAF BREAKER VST: every push to main (or Actions › Build › Run workflow) builds the Windows plugin (VST3 and
-# Standalone), checks it as a DAW would (tests: lbtest, pluginval) and publishes it as a pre-release of this private
-# repository: only its collaborators see it. The firmware's core (lbcore.dll) is built on Linux (MinGW-w64), the
-# plugin on Windows (MSVC, JUCE).
+# LOAF BREAKER VST, as the firmware's own: a push to main is a TEST (one pre-release, "LOAF BREAKER VST TEST",
+# replaced at each push); a push to release (git push origin main:release, only when FLEXOR asks) is a release named
+# after the firmware it carries (vst-vA.B.C: the loaf-vA.B.C tag of the firmware submodule's commit). Each builds the
+# Windows plugin (VST3 and Standalone) and checks it as a DAW would (lbtest, pluginval); the repository is private:
+# only its collaborators see them. The firmware's core (lbcore.dll) is built on Linux (MinGW-w64), the plugin on
+# Windows (MSVC, JUCE).
 name: Build
 on:
   push:
-    branches: [main]
+    branches: [main, release]
     paths-ignore: ["**.md"]
   workflow_dispatch:
 permissions:
@@ -74,11 +76,21 @@ jobs:
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
           unzip -q pv.zip
           ./pluginval.exe --strictness-level 5 --skip-gui-tests --validate "$A/VST3/LOAF BREAKER.vst3"
+      - name: The version (the firmware's)
+        shell: bash
+        run: |
+          FW="$(git ls-tree HEAD firmware | awk '{print $3}')"
+          V="$(git ls-remote --tags https://github.com/FLEXOR-R/loaf-breaker.git 'refs/tags/loaf-v*' | grep "^$FW" \
+               | sed 's|.*refs/tags/loaf-v||; s|\^{}$||' | head -1)"
+          [ -n "$V" ] || V="dev-${FW:0:7}"
+          [ "$GITHUB_REF_NAME" = release ] || V="$V-test${{ github.run_number }}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+          echo "LOAF BREAKER VST $V (firmware ${FW:0:7})" >> "$GITHUB_STEP_SUMMARY"
       - name: The package
         shell: bash
         run: |
           A="build/cmake/LoafBreaker_artefacts/Release"
-          P="LOAF-BREAKER-VST-${{ github.run_number }}-Windows"
+          P="LOAF-BREAKER-VST-$VERSION-Windows"
           mkdir -p "pkg/$P/VST3" "pkg/$P/Standalone"
           cp -r "$A/VST3/LOAF BREAKER.vst3" "pkg/$P/VST3/"
           cp "$A/Standalone/LOAF BREAKER.exe" "$A/Standalone/lbcore.dll" "pkg/$P/Standalone/"
@@ -89,12 +101,22 @@ jobs:
         with:
           name: ${{ env.PKG }}
           path: ${{ env.PKG }}.zip
-      - name: The pre-release (this private repository's collaborators only)
+      - name: TEST pre-release (main; the one before it replaced)
         if: github.ref_name == 'main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" "$PKG.zip" --prerelease --target "$GITHUB_SHA" \
-            --title "LOAF BREAKER VST, build ${{ github.run_number }}" \
-            --notes "Windows: VST3 (Ableton) and Standalone. $(git log -1 --format=%s)"
+          gh release delete vst-test --cleanup-tag -y || true
+          gh release create vst-test "$PKG.zip" --prerelease --target "$GITHUB_SHA" \
+            --title "LOAF BREAKER VST TEST ($VERSION)" \
+            --notes "A test build (Windows: VST3 for Ableton, and Standalone), replaced at the next push. $(git log -1 --format=%s)"
+      - name: Release (release branch, FLEXOR's go)
+        if: github.ref_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "vst-v$VERSION" "$PKG.zip" --latest --target "$GITHUB_SHA" \
+            --title "LOAF BREAKER VST $VERSION" \
+            --notes "LOAF BREAKER $VERSION as a plugin (Windows: VST3 for Ableton, and Standalone): the firmware loaf-v$VERSION."
