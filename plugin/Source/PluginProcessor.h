@@ -33,8 +33,16 @@ public:
     void setStateInformation(const void*, int) override;
 
     // the editor's side: commands queued for the audio thread, the screen and LEDs read back
-    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo };
+    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet };
     void send(Cmd c, int a, int b);
+    void step(int op, int a, int b, int c, int d);   // a sequencer edit (lb_step)
+    // the page as menus (lb_scan, lb_options, lb_set): every part of the tab shown, each setting's values
+    static constexpr int MAX_PARTS = 32;
+    struct PartsView { std::vector<lb_part_t> parts; uint32_t serial = 0; };
+    bool partsIfNew(uint32_t& serial, PartsView& out);
+    void setValue(int part, int knob, int steps);    // part p's knob k, `steps` values on (lb_set)
+    int askOptions(int part, int knob, const char* partName, const char* knobName);   // an id, the answer later
+    bool takeOptions(int id, lb_opts_t& out);        // the answer (false: not yet, or the page had changed)
     bool screenIfNew(uint32_t& serial, uint16_t* dst);   // the 240 x 240 screen (RGB565), when it changed
     void ledsCopy(uint8_t* dst, size_t n);
     juce::String status() const;
@@ -43,6 +51,8 @@ public:
     struct WaveView { std::vector<float> cols; std::vector<float> slices; uint32_t serial = 0; };
     bool modelIfNew(uint32_t& serial, lb_model_t& out);
     bool waveIfNew(uint32_t& serial, WaveView& out);
+    bool seqIfNew(uint32_t& serial, lb_seq_t& out);  // the pattern in RAM (lb_seq), 30 a second
+    bool patternsIfNew(uint32_t& serial, uint8_t* out /* 64 x 40 */);   // the 64 patterns' pictures
     void meters(float& l, float& r);     // the output's peaks since the last call
     void scope(float* out, int n);       // the last n output samples (mono)
     int keyIndex(bool black, int i) const { return black ? blackKey[i % 11] : whiteKey[i % 16]; }
@@ -87,7 +97,7 @@ private:
 
     // editor <-> audio
     juce::AbstractFifo cmdFifo { 512 };
-    struct CmdItem { uint8_t cmd; int8_t a; int16_t b; };
+    struct CmdItem { uint8_t cmd; int8_t a; int16_t b; int8_t c = 0, d = 0, e = 0; };
     CmdItem cmdBuf[512];
     juce::SpinLock screenLock;
     uint16_t screenBuf[240 * 240] {};
@@ -99,6 +109,24 @@ private:
     lb_model_t modelBuf {};
     uint32_t modelSerial = 0;
     WaveView waveBuf;
+    lb_seq_t seqBuf {};
+    uint32_t seqSerial = 0;
+    uint8_t patsBuf[64 * 40] {};
+    uint32_t patsSerial = 0, patsAge = 0;
+    bool patsWanted = true;
+    // the menus' service (on the audio thread, never waiting: try-locks)
+    lb_part_t partsBuf[MAX_PARTS] {};
+    int nParts = 0;
+    uint32_t partsSerial = 0, partsAge = 0;
+    bool partsWanted = true;
+    juce::SpinLock menuLock;
+    struct OptAsk { int id = -1, part = 0, knob = 0; char pname[24] {}, kname[16] {}; };
+    struct OptAnswer { int id = -1; bool ok = false; lb_opts_t o {}; };
+    OptAsk asks[16];
+    int nAsks = 0, nextAsk = 1;
+    std::unique_ptr<OptAnswer[]> answers { new OptAnswer[16] };
+    void serveMenus();
+    int lastPat = -1;
     uint32_t coreWaveSerial = 0;
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
     std::vector<float> scopeRing = std::vector<float>(4096, 0.0f);

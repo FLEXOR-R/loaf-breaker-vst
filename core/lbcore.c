@@ -1,11 +1,13 @@
 /* LOAF BREAKER VST: the firmware's core (fm1-base's host/rfm1.c: the host simulator as a library, compiled natively
  * here, with the whole app: plat_host.c, app.c and its pages) and the C API of lbcore.h over its panel. */
+#define _GNU_SOURCE 1
 #include <stdint.h>
 const uint8_t *lb_bank_ptr;              /* (LB_BIG: the break bank the plugin loads, breaks.bank; app.c reads it) */
 uint32_t lb_bank_len;
 #include "rfm1.c"
 #include "lbcore.h"
 #include "fm1sync.c"
+#include "lbsnap.c"
 void lb_bank(const uint8_t *p, uint32_t n) { lb_bank_ptr = n >= 16u ? p : 0; lb_bank_len = n; }
 int lb_abi(void) { return LB_ABI; }
 static uint32_t lb_now;
@@ -295,3 +297,257 @@ uint32_t lb_wave(float *cols, int n, float *slices, int *nslices)
 }
 
 int lb_key_index(int black, int i) { return black ? (i >= 0 && i < 11 ? BK[i] : -1) : (i >= 0 && i < 16 ? WK[i] : -1); }
+
+/* ---- the sequencer (lbcore.h lb_seq, lb_step, lb_patterns) ---- */
+void lb_seq(lb_seq_t *q)
+{
+    const pat_t *p = pat_now();
+    brk_status_t st;
+    uint32_t d, b, i;
+    uint8_t lane = ui.seq_lane;
+    brk_status(&st);
+    memset(q, 0, sizeof *q);
+    q->pat = (int)pat_cur();
+    q->next = pat_next >= 0 ? pat_next : -1;
+    q->playing = playing_now();
+    q->bar64 = st.playing && st.bar64 >= 0 ? st.bar64 : -1;
+    q->bstep = st.playing && st.step >= 0 ? (int)(st.step % (int32_t)PAT_STEPS) : -1;
+    q->slices = (int)n_slices();
+    q->blen = (int)pat_len();
+    for (d = 0; d < NDRUMS; d++) {
+        q->bars[d] = (int)drum_bars(p, d);
+        for (b = 0; b < 4u; b++)
+            q->mask[d][b] = (uint16_t)drum_bar(p, d, b);
+        for (i = 0; i < (d == DR_KICK ? 64u : 32u); i++)
+            q->sb[d][i] = *stepb(set.pattern, d, i);
+        ui.seq_lane = (uint8_t)(SL_KICK + d * 4u);
+        lane_sound_text(q->snd[d]);
+    }
+    ui.seq_lane = lane;
+    q->novice = set.novice;
+    q->changed = grp_changed();
+    q->clip = clip_from;
+    for (i = 0; i < 64u; i++)
+        q->note[i] = (int8_t)kick_note(p, i);
+    for (i = 0; i < PAT_STEPS && i < 32u; i++) {
+        q->brk[i][0] = p->st[i][0];
+        q->brk[i][1] = p->st[i][1];
+        q->brk[i][2] = p->st[i][2];
+    }
+    {
+        const char *n = break_name(set.brk);
+        for (i = 0; i < 15u && n[i]; i++)
+            q->brkname[i] = n[i];
+    }
+}
+int lb_step(int op, int a, int b, int c, int d)
+{
+    uint8_t lane = ui.seq_lane, nov = set.novice;
+    int ok = 1;
+    if (op >= 1 && op <= 6) {
+        uint8_t u[5] = { (uint8_t)op, (uint8_t)a, (uint8_t)b, (uint8_t)c, (uint8_t)(int8_t)d };
+        return ed_step(u);
+    }
+    set.novice = 0u;
+    if (op == 7) {                       /* copy: this pattern into the clipboard (pat_copy_paste's first half) */
+        clip_from = -1;
+        pat_copy_paste();
+    } else if (op == 8) {                /* paste: the clipboard here (another pattern) */
+        if (clip_from < 0 || (uint32_t)clip_from == pat_cur())
+            ok = 0;
+        else
+            pat_copy_paste();
+    } else if (op == 9 && d) {
+        ui.seq_lane = (uint8_t)(a >= 4 ? 0u : SL_KICK + (uint32_t)a * 4u);
+        seq_rotate(d);
+    } else if (op == 10) {
+        ui.seq_lane = (uint8_t)(a >= 4 ? (uint32_t)b % 2u : SL_KICK + (uint32_t)a * 4u + (uint32_t)b % 4u);
+        seq_copy_bar((uint32_t)c);
+    } else if (op == 11)
+        seq_clear_drums();
+    else if (op == 12) {
+        ui.seq_lane = 0u;
+        seq_clear(2);                    /* (REC held on SEQ's: both halves of the break, the drums kept) */
+    } else if (op == 13)
+        seq_clear(0);                    /* (the whole pattern, SEL + REC's) */
+    else
+        ok = 0;
+    ui.seq_lane = lane;
+    set.novice = nov;
+    seq_lane_fix();
+    ui.redraw |= RG_ALL;
+    return ok;
+}
+void lb_patterns(uint8_t *out)
+{
+    static uint8_t o[2u + 16u * 40u];
+    uint32_t g;
+    for (g = 0; g < NGRP; g++) {
+        edx_bank(g, o);
+        memcpy(out + g * 16u * 40u, o + 2, 16u * 40u);
+    }
+}
+
+/* ---- the pages as menus (lbcore.h lb_scan, lb_options): looked at ahead through the firmware's own code, the core
+ * then put back exactly as it was (lbsnap.c) ---- */
+static uint8_t *lb_snapbuf;
+static void lb_tick1(void)               /* one millisecond, its input read, no frame */
+{
+    rf_tick(++lb_now);
+    rf_idle();
+}
+static void lb_enc(int role, int d)      /* a detent of an encoder, as the panel turns it, read at once */
+{
+    rf_panel.enc[rf_panel.enc_id[role]] += d * rf_panel.enc_dir[role];
+    lb_tick1();
+}
+static void lb_part_of(lb_part_t *p)
+{
+    lb_model_t m;
+    int i;
+    lb_model(&m);
+    memset(p, 0, sizeof *p);
+    lb_copy(p->part, m.part, sizeof p->part);
+    for (i = 0; i < 4; i++) {
+        lb_copy(p->kname[i], m.kname[i], sizeof p->kname[i]);
+        lb_copy(p->kval[i], m.kval[i], sizeof p->kval[i]);
+        p->knorm[i] = m.knorm[i];
+    }
+}
+static int lb_same_part(const lb_part_t *a, const lb_part_t *b)
+{
+    int i;
+    if (strcmp(a->part, b->part))
+        return 0;
+    for (i = 0; i < 4; i++)
+        if (strcmp(a->kname[i], b->kname[i]))
+            return 0;
+    return 1;
+}
+static int lb_snap_ready(void)
+{
+    if (!lb_snapbuf)
+        lb_snapbuf = snap_new();
+    return lb_snapbuf != 0;
+}
+int lb_scan(lb_part_t *out, int max)
+{
+    lb_model_t m;
+    int n = 1;
+    if (max < 1)
+        return 0;
+    lb_part_of(&out[0]);
+    lb_model(&m);
+    if (!m.part[0] || m.sel || !lb_snap_ready())   /* (no parts: ALGORITHM is the break there; SEL held: SEL's knobs) */
+        return 1;
+    snap_take(lb_snapbuf);
+    while (n < max) {
+        lb_enc(LB_ALGO, 1);
+        lb_part_of(&out[n]);
+        if (lb_same_part(&out[n], &out[0]))
+            break;
+        n++;
+    }
+    snap_put(lb_snapbuf);
+    return n;
+}
+static int lb_opt_walk(int knob, int d, char (*v)[LB_OPT_LEN], int max, int *wrap, const char *start)
+{
+    char now[24], last[24];
+    int n = 0, still = 0;
+    lb_copy(last, start, sizeof last);
+    while (n < max) {
+        lb_model_t m;
+        lb_enc(LB_K1 + knob, d);
+        lb_model(&m);
+        lb_copy(now, m.kval[knob], sizeof now);
+        if (!strcmp(now, last)) {        /* (unchanged: the end, or a knob that wants more than a detent) */
+            if (++still >= 3)
+                break;
+            continue;
+        }
+        still = 0;
+        if (!strcmp(now, start)) {       /* (back where it began: a list that goes round) */
+            *wrap = 1;
+            break;
+        }
+        lb_copy(v[n++], now, LB_OPT_LEN);
+        lb_copy(last, now, sizeof last);
+    }
+    return n;
+}
+int lb_options(int part, int knob, lb_opts_t *o)
+{
+    static char up[LB_OPT_MAX][LB_OPT_LEN], dn[LB_OPT_MAX][LB_OPT_LEN];   /* (overwritten by the putting back: copied
+                                          * out first) */
+    char start[24];
+    int i, nu, nd = 0, wrap = 0, half = LB_OPT_MAX / 2 - 1;
+    lb_model_t m;
+    memset(o, 0, sizeof *o);
+    if (knob < 0 || knob > 3 || !lb_snap_ready())
+        return 0;
+    snap_take(lb_snapbuf);
+    for (i = 0; i < part; i++)
+        lb_enc(LB_ALGO, 1);
+    lb_model(&m);
+    lb_copy(start, m.kval[knob], sizeof start);
+    nu = lb_opt_walk(knob, 1, up, half, &wrap, start);
+    {
+        char keep[LB_OPT_MAX / 2][LB_OPT_LEN];   /* (on the stack: outside what is put back) */
+        int ku = nu;
+        memcpy(keep, up, (size_t)nu * LB_OPT_LEN);
+        snap_put(lb_snapbuf);
+        if (!wrap) {
+            for (i = 0; i < part; i++)
+                lb_enc(LB_ALGO, 1);
+            nd = lb_opt_walk(knob, -1, dn, half, &wrap, start);
+            {
+                char keepd[LB_OPT_MAX / 2][LB_OPT_LEN];
+                memcpy(keepd, dn, (size_t)nd * LB_OPT_LEN);
+                snap_put(lb_snapbuf);
+                for (i = 0; i < nd; i++)
+                    memcpy(o->v[i], keepd[nd - 1 - i], LB_OPT_LEN);
+            }
+        }
+        o->cur = nd;
+        memcpy(o->v[nd], start, LB_OPT_LEN - 1);
+        for (i = 0; i < ku; i++)
+            memcpy(o->v[nd + 1 + i], keep[i], LB_OPT_LEN);
+        o->n = nd + 1 + ku;
+    }
+    o->wrap = wrap;
+    o->more = nu >= half || nd >= half;
+    return o->n;
+}
+/* a value set as the menus ask: part p's knob k moved `steps` values (each a change of its value, whatever detents
+ * that takes), then back to the part that was shown; the firmware's own code all along (its clamps, its saves) */
+int lb_set(int part, int knob, int steps)
+{
+    lb_model_t m;
+    char last[24];
+    int i, done = 0, d = steps > 0 ? 1 : -1;
+    if (knob < 0 || knob > 3)
+        return 0;
+    for (i = 0; i < part; i++)
+        lb_enc(LB_ALGO, 1);
+    lb_model(&m);
+    lb_copy(last, m.kval[knob], sizeof last);
+    while (done < (steps < 0 ? -steps : steps)) {
+        int tries = 0, moved = 0;
+        while (tries++ < 4) {
+            lb_enc(LB_K1 + knob, d);
+            lb_model(&m);
+            if (strcmp(m.kval[knob], last)) {
+                lb_copy(last, m.kval[knob], sizeof last);
+                moved = 1;
+                break;
+            }
+        }
+        if (!moved)
+            break;                       /* (the end: nothing further) */
+        done++;
+    }
+    for (i = 0; i < part; i++)
+        lb_enc(LB_ALGO, -1);
+    return done;
+}

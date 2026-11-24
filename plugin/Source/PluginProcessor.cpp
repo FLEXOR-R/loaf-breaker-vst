@@ -86,6 +86,14 @@ void LoafBreakerProcessor::send(Cmd c, int a, int b)
         cmdBuf[scope.startIndex2] = { (uint8_t) c, (int8_t) a, (int16_t) b };
 }
 
+void LoafBreakerProcessor::step(int op, int a, int b, int c, int d)
+{
+    const auto scope = cmdFifo.write(1);
+    const CmdItem it { (uint8_t) CmdStep, (int8_t) op, (int16_t) a, (int8_t) b, (int8_t) c, (int8_t) juce::jlimit(-127, 127, d) };
+    if (scope.blockSize1 > 0) cmdBuf[scope.startIndex1] = it;
+    else if (scope.blockSize2 > 0) cmdBuf[scope.startIndex2] = it;
+}
+
 void LoafBreakerProcessor::drainCommands()
 {
     const auto scope = cmdFifo.read(cmdFifo.getNumReady());
@@ -94,6 +102,8 @@ void LoafBreakerProcessor::drainCommands()
         else if (it.cmd == CmdKey) core.key(it.a, it.b != 0, it.b > 0 ? it.b : 100);
         else if (it.cmd == CmdTurn) core.turn(it.a, it.b);
         else if (it.cmd == CmdTempo) core.tempo(it.b);
+        else if (it.cmd == CmdStep) { core.step(it.a, it.b, (uint8_t) it.c, it.d, it.e); patsWanted = true; }
+        else if (it.cmd == CmdSet) { core.set(it.a, it.c, it.b); partsWanted = true; }
     };
     for (int i = 0; i < scope.blockSize1; ++i) run(cmdBuf[scope.startIndex1 + i]);
     for (int i = 0; i < scope.blockSize2; ++i) run(cmdBuf[scope.startIndex2 + i]);
@@ -121,6 +131,16 @@ void LoafBreakerProcessor::coreMs()
             if (tl.isLocked()) {
                 core.model(&modelBuf);
                 modelSerial++;
+                core.seq(&seqBuf);
+                seqSerial++;
+                if (patsWanted || ++patsAge >= 30 || seqBuf.pat != lastPat) {   // (a second, an edit, another pattern)
+                    core.patterns(patsBuf);
+                    patsSerial++;
+                    patsAge = 0;
+                    patsWanted = false;
+                    lastPat = seqBuf.pat;
+                }
+                serveMenus();
                 const uint32_t ws = core.wave(nullptr, 0, nullptr, nullptr);
                 if (ws != coreWaveSerial) {   // another break: its waveform, once
                     float sl[32];
@@ -318,6 +338,93 @@ bool LoafBreakerProcessor::modelIfNew(uint32_t& serial, lb_model_t& out)
         return false;
     out = modelBuf;
     serial = modelSerial;
+    return true;
+}
+
+void LoafBreakerProcessor::setValue(int part, int knob, int steps)
+{
+    if (steps == 0) return;
+    const auto scope = cmdFifo.write(1);
+    const CmdItem it { (uint8_t) CmdSet, (int8_t) part, (int16_t) juce::jlimit(-1000, 1000, steps), (int8_t) knob, 0, 0 };
+    if (scope.blockSize1 > 0) cmdBuf[scope.startIndex1] = it;
+    else if (scope.blockSize2 > 0) cmdBuf[scope.startIndex2] = it;
+}
+
+// (the audio thread, 30 times a second, the screen lock held): the page scanned again when it may have changed (an
+// edit, or every few frames), then one setting's values looked at, if asked
+void LoafBreakerProcessor::serveMenus()
+{
+    const juce::SpinLock::ScopedTryLockType tl(menuLock);
+    if (! tl.isLocked()) return;
+    if (partsWanted || ++partsAge >= 4) {
+        nParts = core.scan(partsBuf, MAX_PARTS);
+        partsSerial++;
+        partsAge = 0;
+        partsWanted = false;
+    }
+    if (nAsks > 0) {
+        const OptAsk a = asks[0];
+        for (int i = 1; i < nAsks; ++i) asks[i - 1] = asks[i];
+        nAsks--;
+        auto& r = answers[a.id % 16];
+        r.id = a.id;
+        r.ok = a.part < nParts && std::strcmp(partsBuf[a.part].part, a.pname) == 0
+               && std::strcmp(partsBuf[a.part].kname[a.knob & 3], a.kname) == 0
+               && core.options(a.part, a.knob, &r.o) > 0;
+    }
+}
+
+bool LoafBreakerProcessor::partsIfNew(uint32_t& serial, PartsView& out)
+{
+    const juce::SpinLock::ScopedLockType sl(menuLock);
+    if (serial == partsSerial) return false;
+    out.parts.assign(partsBuf, partsBuf + nParts);
+    out.serial = serial = partsSerial;
+    return true;
+}
+
+int LoafBreakerProcessor::askOptions(int part, int knob, const char* partName, const char* knobName)
+{
+    const juce::SpinLock::ScopedLockType sl(menuLock);
+    if (nAsks >= 16) return -1;
+    OptAsk& a = asks[nAsks++];
+    a.id = nextAsk++;
+    a.part = part;
+    a.knob = knob;
+    juce::String(partName).copyToUTF8(a.pname, sizeof a.pname);
+    juce::String(knobName).copyToUTF8(a.kname, sizeof a.kname);
+    answers[a.id % 16].id = -1;
+    return a.id;
+}
+
+bool LoafBreakerProcessor::takeOptions(int id, lb_opts_t& out)
+{
+    const juce::SpinLock::ScopedLockType sl(menuLock);
+    auto& r = answers[id % 16];
+    if (r.id != id) return false;
+    r.id = -1;
+    if (! r.ok) { out.n = 0; return true; }
+    out = r.o;
+    return true;
+}
+
+bool LoafBreakerProcessor::seqIfNew(uint32_t& serial, lb_seq_t& out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == seqSerial)
+        return false;
+    out = seqBuf;
+    serial = seqSerial;
+    return true;
+}
+
+bool LoafBreakerProcessor::patternsIfNew(uint32_t& serial, uint8_t* out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == patsSerial)
+        return false;
+    std::memcpy(out, patsBuf, sizeof patsBuf);
+    serial = patsSerial;
     return true;
 }
 

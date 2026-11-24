@@ -51,7 +51,21 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   number dragged or the wheel, TEMPO - / + (N, M), lb_tempo; SELECT never the tempo here (the firmware's LB_BIG: HOME's
   tabs, nothing elsewhere); SELECT, ALGORITHM and PRESET handed over a detent at a time (lbcore `lb_nav`: the pages
   move a tab a reading).
-  Next: page-specific panels (the sequencer's grid, the kick's picture, the song), more visuals.
+  Menus (24 Nov 2026, FLEXOR: "des vrais menus, pas juste quelque chose pour contrôler le petit aperçu ... l'aperçu dans
+  un coin, régler sa taille"; "des crans plus ou moins rapprochés selon s'il y a 4 options ou 99 ... pas de potard qui
+  tourne dans le vide"): the four knobs gone; every part of the tab shown at once, a card each (MenuContent), each
+  setting drawn after the values it can take: 2 a switch, a few short ones buttons, names a list, amounts a slider with
+  its ends (its steps' width after their count; double / right click: every value in a list). The core looks ahead
+  through the firmware's own code: lbcore `lb_scan` (every part: ALGORITHM's round), `lb_options` (every value: the
+  knob turned until it stops or comes round), `lb_set` (part p's knob k, n values on, the part shown back), the whole
+  state kept and put back around them (core/lbsnap.c: the library's writable memory, ELF's RW segment past RELRO, PE's
+  writable sections; ~1-5 ms a setting, one a frame on the audio thread: the processor's serveMenus). The FM-1's screen
+  a floating window (moved by its bar, sized by its corner, kept: settings machineBox), MENU shows / hides it.
+  The sequencer (FLEXOR: "il me faut un vrai séquenceur"): PATTERN's FULL / DRUMS tabs show SeqPanel: the 64 patterns,
+  the break's 32 steps (each its slice's own waveform), KICK SN HH CP 16/32/64, click / drag to paint, the wheel (a
+  break step's slice, a drum's HITS), the step's settings, the bar's and the lane's tools (lbcore `lb_seq`, `lb_step`:
+  SEQ's own code and undo; `lb_patterns` the bank's pictures). core/coretest.c checks it all in CI (Linux, Windows).
+  Next: a song arranger (the tracks' items), the kick's picture, a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

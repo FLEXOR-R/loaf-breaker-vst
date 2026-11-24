@@ -35,6 +35,9 @@ jobs:
           mkdir -p build
           core/build_core.sh build/liblbcore.so
           core/build_core.sh build/lbcore.dll x86_64-w64-mingw32-gcc
+          gcc -O1 -Icore -o build/coretest core/coretest.c build/liblbcore.so -Wl,-rpath,"$PWD/build"
+          build/coretest   # (the menus' look-ahead and the sequencer, the state put back: Linux)
+          x86_64-w64-mingw32-gcc -O1 -Icore -o build/coretest.exe core/coretest.c build/lbcore.dll
       - name: The break bank (every break, 44.1 kHz 16-bit)
         run: core/build_bank.sh build/breaks.bank
       - uses: actions/upload-artifact@v4
@@ -43,6 +46,7 @@ jobs:
           path: |
             build/lbcore.dll
             build/breaks.bank
+            build/coretest.exe
       - name: The plugin on Linux, and its checks (as a DAW loads it; pluginval)
         run: |
           sudo apt-get install -y -qq libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev \
@@ -80,6 +84,7 @@ jobs:
           mkdir -p "$A/VST3/LOAF BREAKER.vst3/Contents/Resources"
           cp build/breaks.bank "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
           cp build/lbcore.dll build/breaks.bank "$A/Standalone/"
+          (cd build && ./coretest.exe)   # (the same on Windows: its own way of keeping the state)
           "build/cmake/lbtest_artefacts/Release/lbtest.exe" "$PWD/$A/VST3/LOAF BREAKER.vst3" windows.wav
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
           unzip -q pv.zip

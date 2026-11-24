@@ -25,6 +25,12 @@ public:
     void (*key)(int k, int down, int vel) = nullptr;
     void (*turn)(int role, int detents) = nullptr;
     void (*tempo)(int detents) = nullptr;
+    void (*seq)(lb_seq_t* q) = nullptr;
+    int (*step)(int op, int a, int b, int c, int d) = nullptr;
+    void (*patterns)(uint8_t* out) = nullptr;
+    int (*scan)(lb_part_t* out, int max) = nullptr;
+    int (*options)(int part, int knob, lb_opts_t* o) = nullptr;
+    int (*set)(int part, int knob, int steps) = nullptr;
     void (*master)(int v) = nullptr;
     uint32_t (*screen)(uint16_t* rgb565) = nullptr;
     uint32_t (*leds)(uint8_t* out, uint32_t n) = nullptr;

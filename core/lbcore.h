@@ -33,7 +33,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 4
+#define LB_ABI 6
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -64,6 +64,55 @@ LB_API void lb_model(lb_model_t *m);
 LB_API uint32_t lb_wave(float *cols, int n, float *slices, int *nslices);
 LB_API int lb_key_index(int black, int i);       /* the FM-1 key (0..26) of white key i (0..15) or black key i (0..10) */
 LB_API void lb_save(void);
+/* the sequencer (the VST's PATTERN page; FLEXOR, 24 Nov 2026: "il me faut un vrai séquenceur"): the pattern in RAM whole,
+ * as the firmware's SEQ has it (the Studio's ED_SEQ, read straight) */
+typedef struct {
+    int pat, next, playing, bar64, bstep;  /* 0..63, the next (-1 none), PLAY, the drums' step 0..63 and the break's 0..31
+                                          * (-1 none) */
+    int slices, blen;                      /* the break's slices, its steps (32) */
+    int bars[4];                           /* KICK SN HH CP: their bars (1, 2, 4) */
+    int novice, changed, clip;             /* BEGINNER; the group in RAM changed (another group: SAVE first); the
+                                          * pattern copied (-1 none) */
+    uint16_t mask[4][4];                   /* each drum's bars, a bit a step */
+    uint8_t sb[4][64];                     /* each step's HITS - 1 (bits 0-1), COND (2-4), NUDGE (5-7); the drums' 32 */
+    int8_t note[64];                       /* the kick's notes, semitones */
+    uint8_t brk[32][3];                    /* the break's steps: slice (0 OFF, 1 LOOP, 2.. slice 1..), pitch (int8), flags
+                                          * (bit 0 reverse, 1-2 repeat - 1) */
+    char snd[4][20];                       /* what each lane plays ("KICK 4", "SNARE 2" ...) */
+    char brkname[16];
+} lb_seq_t;
+LB_API void lb_seq(lb_seq_t *q);
+/* a sequencer edit, through SEQ's own code (the same clamps and undo): op 1 a drum step on / off (a the drum 0..3, b its
+ * step 0..63), 2 a drum step's knob (c 0 NOTE, 1 HITS, 2 COND, 3 NUDGE; d the turn), 3 a lane's (b its bar; c 0 FILL,
+ * 1 SOUND, 2 CLEAR / 4X4, 3 LENGTH), 4 a break step's (b 0..31; c 0 SLICE, 1 PITCH, 2 REPEAT, 3 REVERSE), 5 the pattern
+ * a (0..63), 6 undo; 7 copy the pattern, 8 paste it here, 9 a lane a step later / earlier (a 0..3 the drums, 4 the
+ * break; d), 10 a lane's bar copied (a; b the bar, c the bar it goes to), 11 the drums cleared, 12 the break's steps
+ * cleared, 13 the whole pattern cleared; 1 done, 0 refused */
+LB_API int lb_step(int op, int a, int b, int c, int d);
+/* the 64 patterns' pictures (four groups of 16, the one in RAM as it is, the others as saved): each 40 bytes, the drums'
+ * bars (4), their masks (4 x 4 u16), the break's steps on (u32) */
+LB_API void lb_patterns(uint8_t *out /* 64 x 40 */);
+/* the pages as menus (FLEXOR, 24 Nov 2026: "des vrais menus, pas juste quelque chose pour contrôler le petit aperçu"):
+ * every part of the tab shown (ALGORITHM's round, from the one shown), each with its four knobs, looked at ahead and the
+ * core put back as it was; their count (1: the tab has no parts) */
+typedef struct {
+    char part[24];
+    char kname[4][16], kval[4][20];
+    float knorm[4];
+} lb_part_t;
+LB_API int lb_scan(lb_part_t *out, int max);
+/* every value knob k (0..3) of part p (lb_scan's order) can take, in order, the one it has now at cur; wrap: a list
+ * that goes round; more: longer than this holds. Looked at ahead, the core put back */
+#define LB_OPT_MAX 256
+#define LB_OPT_LEN 20
+typedef struct {
+    int n, cur, wrap, more;
+    char v[LB_OPT_MAX][LB_OPT_LEN];
+} lb_opts_t;
+LB_API int lb_options(int part, int knob, lb_opts_t *o);
+/* part p's knob k (lb_scan's order) moved `steps` values (each a change, whatever detents it takes), the part shown
+ * then back; the values it moved */
+LB_API int lb_set(int part, int knob, int steps);
 /* the VST <-> FM-1 translation (fm1sync.c): the state as an FM-1 backup image (LBRK; room: 80 KB), its length or 0;
  * an FM-1 backup into the store (0 done, 1 not one, 2 damaged), then the core booted again from lb_flash_get */
 LB_API uint32_t lb_fm1_export(uint8_t *out, uint32_t cap, char *report, uint32_t rcap);

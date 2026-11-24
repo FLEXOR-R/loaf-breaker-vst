@@ -6,6 +6,7 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <map>
 #include "PluginProcessor.h"
 #include "KeyMap.h"
 
@@ -34,13 +35,30 @@ public:
     double toastUntil = 0.0;
     bool showMachine = true;
     void menu();
+    void toggleMachine();
+
+    // the page as menus: its parts (lbcore lb_scan), each setting's values once looked at (lb_options), kept by
+    // domain | source | tab | part | knob
+    LoafBreakerProcessor::PartsView parts;
+    struct Opts { juce::StringArray v; bool wrap = false, more = false; };
+    std::map<juce::String, Opts> opts;
+    std::map<int, juce::String> asked;           // an answer awaited: its key
+    juce::String pageKey() const;                // domain | source | tab
+    juce::String optKey(const lb_part_t& p, int knob) const;
+    void wantOptions(int part, int knob);
+    // the sequencer's
+    lb_seq_t seq {};
+    uint8_t pats[64 * 40] {};
+    bool seqView() const;                        // PATTERN, its grid (not GROOVE)
 
     struct Root;
     std::unique_ptr<Root> root;
 
 private:
     void timerCallback() override;
-    uint32_t modelSerial = 0, waveSerial = 0;
+    uint32_t modelSerial = 0, waveSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0;
+    juce::String lastDom;
+    std::unique_ptr<lb_opts_t> optBuf { new lb_opts_t() };
     std::set<int> heldKeys;
     juce::String pendingSource;
     int sourceTries = 0;
