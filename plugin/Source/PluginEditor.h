@@ -37,6 +37,7 @@ public:
     void menu();
     void toggleMachine();
     void persoEditor();
+    void openManager();                          // VST, library, FM-1 (Exchange.h)
 
     // the page as menus: its parts (lbcore lb_scan), each setting's values once looked at (lb_options), kept by
     // domain | source | tab | part | knob

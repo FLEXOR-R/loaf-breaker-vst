@@ -64,6 +64,15 @@ public:
     // (the breaks translated, core/fm1sync.c) and back; the USB link
     bool exportFm1(juce::MemoryBlock& image, juce::String& report);
     bool importFm1(const juce::MemoryBlock& image, juce::String& report);
+    // the pick (FLEXOR: "exporter ou importer des choses, patterns ou tracks ou kicks"): some kicks, patterns, tracks
+    bool listFm1(const juce::MemoryBlock* image, lb_list_t& out);   // nullptr: the VST's own
+    bool putFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::MemoryBlock& out, juce::String& report);
+    bool takeFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::String& report);
+    // the kicks as blobs (the library: FLEXOR, "importer des kicks de la machine, les nommer et les ranger")
+    juce::MemoryBlock kickRead(const juce::MemoryBlock* fm1, int k);     // empty: none (fm1 nullptr: the VST's)
+    void kickHear(const juce::MemoryBlock& blob);                        // rendered alone, played over the output
+    bool putKicksFm1(juce::MemoryBlock& fm1, const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to);
+    bool putKicksVst(const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to);
     Fm1Link link;
 
 private:
@@ -126,6 +135,10 @@ private:
     int nAsks = 0, nextAsk = 1;
     std::unique_ptr<OptAnswer[]> answers { new OptAnswer[16] };
     void serveMenus();
+    // a kick heard (kickHear): its 44.1 kHz frames, played over the output
+    juce::SpinLock previewLock;
+    std::vector<float> preview;
+    double previewAt = 0.0;
     int lastPat = -1;
     uint32_t coreWaveSerial = 0;
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };

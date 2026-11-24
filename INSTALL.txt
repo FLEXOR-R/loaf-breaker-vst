@@ -17,6 +17,18 @@ CE QUE LA VERSION PC A EN PLUS DU FM-1
 - Les touches blanches et le split gardes pour chacun des 98 breaks.
 - Le delai DUB jusqu'a 2 secondes (toutes les valeurs a tous les tempos) ; une sortie 24 bits.
 
+LA GESTION : VST, BIBLIOTHEQUE DE KICKS, FM-1 (MENU > GESTION)
+- Trois colonnes : les 20 kicks, 64 patterns et 8 tracks de la VST ; ta bibliotheque de kicks sur le PC ; ceux du
+  FM-1 (LIRE LE FM-1 en USB, FM-1 a l'arret, ou OUVRIR UNE SAUVEGARDE .BAK).
+- ">" ecoute un kick (de la VST, de la bibliotheque ou du FM-1) avant de le remplacer. Un clic coche.
+- VST + BIBLIO >> FM-1 : ce qui est coche (et les kicks coches de la bibliotheque) va dans le FM-1 ; le reste de la
+  machine ne bouge pas (ses breaks, ses reglages, ses autres kicks et patterns). Puis ECRIRE SUR LE FM-1 (il demande
+  de confirmer : SEL oui) ou ENREGISTRER LE .BAK.
+- FM-1 + BIBLIO >> VST : l'inverse.
+- KICKS COCHES >> BIBLIOTHEQUE : chaque kick devient un fichier .lbkick dans Documents\LOAF BREAKER\Kicks, autant que
+  tu veux. Double-clic : renommer. Clic droit : ranger dans un dossier, supprimer. NOUVEAU DOSSIER pour trier.
+- OU ILS ARRIVENT : aux memes numeros, ou a partir d'un numero choisi (K, P, T).
+
 LE LIEN AVEC LE FM-1 (bouton FM-1, en haut)
 - "Envoyer tout au FM-1" : tes kicks, patterns, song et reglages du VST vont sur la machine. Le FM-1 doit etre
   branche en USB, arrete (pas en lecture), avec LOAF BREAKER a jour (la version avec la sauvegarde USB). Il verifie

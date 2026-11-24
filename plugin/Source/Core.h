@@ -47,6 +47,14 @@ public:
     int (*keyIndex)(int black, int i) = nullptr;
     uint32_t (*fm1Export)(uint8_t* out, uint32_t cap, char* report, uint32_t rcap) = nullptr;
     int (*fm1Import)(const uint8_t* img, uint32_t n, char* report, uint32_t rcap) = nullptr;
+    int (*fm1List)(const uint8_t* img, uint32_t n, lb_list_t* o) = nullptr;
+    uint32_t (*fm1Put)(const uint8_t* fm1, uint32_t n, const lb_pick_t* p, int np, uint8_t* out, uint32_t cap, char* rep, uint32_t rcap) = nullptr;
+    uint32_t (*kickSize)() = nullptr;
+    int (*kickRead)(const uint8_t* img, uint32_t n, int k, uint8_t* blob) = nullptr;
+    uint32_t (*kickRender)(const uint8_t* blob, float* lr, uint32_t frames) = nullptr;
+    uint32_t (*fm1PutKicks)(const uint8_t* fm1, uint32_t n, const uint8_t* blobs, const uint8_t* to, int nk, uint8_t* out, uint32_t cap) = nullptr;
+    int (*vstPutKicks)(const uint8_t* blobs, const uint8_t* to, int nk) = nullptr;
+    int (*fm1Take)(const uint8_t* fm1, uint32_t n, const lb_pick_t* p, int np, char* rep, uint32_t rcap) = nullptr;
     // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance
     static const juce::MemoryBlock& bankFile();
 

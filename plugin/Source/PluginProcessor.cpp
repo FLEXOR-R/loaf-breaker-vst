@@ -286,6 +286,19 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         }
         done = until;
     }
+    {                                    // a kick heard from the library or a backup, over it
+        const juce::SpinLock::ScopedTryLockType pl(previewLock);
+        if (pl.isLocked() && ! preview.empty()) {
+            const double step = CORE_RATE / hostRate;
+            const size_t frames = preview.size() / 2;
+            for (int i = 0; i < n && previewAt < (double) frames; ++i, previewAt += step) {
+                const size_t k = (size_t) previewAt;
+                outL[i] += preview[2 * k] * gain;
+                if (outR) outR[i] += preview[2 * k + 1] * gain;
+            }
+            if (previewAt >= (double) frames) preview.clear();
+        }
+    }
     {                                    // the meters and the scope
         float pl = 0.0f, pr = 0.0f;
         int at = scopeAt.load();
@@ -550,6 +563,108 @@ bool LoafBreakerProcessor::importFm1(const juce::MemoryBlock& image, juce::Strin
         pendingFlash = flash;
     }
     boot();                              // a fresh core with it
+    return true;
+}
+
+bool LoafBreakerProcessor::listFm1(const juce::MemoryBlock* image, lb_list_t& out)
+{
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded())
+        return false;
+    return core.fm1List(image ? static_cast<const uint8_t*>(image->getData()) : nullptr, image ? (uint32_t) image->getSize() : 0u, &out) == 0;
+}
+
+bool LoafBreakerProcessor::putFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::MemoryBlock& out, juce::String& report)
+{
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded())
+        return false;
+    out.setSize(200000);
+    char rep[512] = {};
+    const uint32_t n = core.fm1Put(static_cast<const uint8_t*>(fm1.getData()), (uint32_t) fm1.getSize(), picks.data(), (int) picks.size(),
+                                   static_cast<uint8_t*>(out.getData()), (uint32_t) out.getSize(), rep, sizeof rep);
+    out.setSize(n);
+    report = rep;
+    return n > 0;
+}
+
+bool LoafBreakerProcessor::takeFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::String& report)
+{
+    {
+        const juce::ScopedLock sl(lock);
+        if (! ready || ! core.loaded())
+            return false;
+        char rep[512] = {};
+        const int r = core.fm1Take(static_cast<const uint8_t*>(fm1.getData()), (uint32_t) fm1.getSize(), picks.data(), (int) picks.size(), rep, sizeof rep);
+        report = r < 0 ? juce::String("Ce n'est pas une sauvegarde LOAF BREAKER.") : juce::String(rep);
+        if (r < 0)
+            return false;
+        juce::MemoryBlock flash(core.flashSize());
+        core.flashGet(static_cast<uint8_t*>(flash.getData()), (uint32_t) flash.getSize());
+        pendingFlash = flash;
+    }
+    boot();                              // a fresh core with them
+    return true;
+}
+
+juce::MemoryBlock LoafBreakerProcessor::kickRead(const juce::MemoryBlock* fm1, int k)
+{
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded())
+        return {};
+    juce::MemoryBlock b(core.kickSize());
+    if (! core.kickRead(fm1 ? static_cast<const uint8_t*>(fm1->getData()) : nullptr, fm1 ? (uint32_t) fm1->getSize() : 0u, k,
+                        static_cast<uint8_t*>(b.getData())))
+        return {};
+    return b;
+}
+
+void LoafBreakerProcessor::kickHear(const juce::MemoryBlock& blob)
+{
+    std::vector<float> lr(2 * 66150);    // (1.5 s)
+    {
+        const juce::ScopedLock sl(lock);
+        if (! ready || ! core.loaded() || blob.getSize() != core.kickSize())
+            return;
+        if (! core.kickRender(static_cast<const uint8_t*>(blob.getData()), lr.data(), 66150))
+            return;
+    }
+    const juce::SpinLock::ScopedLockType pl(previewLock);
+    preview = std::move(lr);
+    previewAt = 0.0;
+}
+
+bool LoafBreakerProcessor::putKicksFm1(juce::MemoryBlock& fm1, const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to)
+{
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded() || blobs.empty())
+        return false;
+    juce::MemoryBlock all;
+    for (auto& b : blobs) all.append(b.getData(), b.getSize());
+    juce::MemoryBlock out(200000);
+    const uint32_t n = core.fm1PutKicks(static_cast<const uint8_t*>(fm1.getData()), (uint32_t) fm1.getSize(), static_cast<const uint8_t*>(all.getData()),
+                                        to.data(), (int) blobs.size(), static_cast<uint8_t*>(out.getData()), (uint32_t) out.getSize());
+    if (! n) return false;
+    out.setSize(n);
+    fm1 = out;
+    return true;
+}
+
+bool LoafBreakerProcessor::putKicksVst(const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to)
+{
+    {
+        const juce::ScopedLock sl(lock);
+        if (! ready || ! core.loaded() || blobs.empty())
+            return false;
+        juce::MemoryBlock all;
+        for (auto& b : blobs) all.append(b.getData(), b.getSize());
+        if (core.vstPutKicks(static_cast<const uint8_t*>(all.getData()), to.data(), (int) blobs.size()) <= 0)
+            return false;
+        juce::MemoryBlock flash(core.flashSize());
+        core.flashGet(static_cast<uint8_t*>(flash.getData()), (uint32_t) flash.getSize());
+        pendingFlash = flash;
+    }
+    boot();
     return true;
 }
 

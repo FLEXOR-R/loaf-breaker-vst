@@ -71,6 +71,18 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   SETUP's), PERSO (nine colours picked, settings skinPerso); the sequencer as the FM-1's SEQ: steps on in the accent,
   the lane edited vivid, the playhead white, HITS split, CHANCE the lower half dark, NUDGE a white mark, a note a white
   line. The header: LOAF BREAKER, BY FLEXOR (FLEXOR: "et c'est tout").
+  The manager (MENU › GESTION; FLEXOR: "exporter ou importer des choses, patterns ou tracks ou kicks"; "écouter sur le
+  PC les kicks de la machine ... les nommer et les ranger ... une gestion totale"): Exchange.cpp, three columns, the
+  VST's 20 kicks / 64 patterns / 8 tracks, the library (each kick a .lbkick file, Documents/LOAF BREAKER/Kicks and its
+  folders: renamed, moved, deleted), the FM-1's (its backup over USB, or a .bak); > hears a kick, ticks pick, sent or
+  taken item by item, the rest of the other side byte for byte as it was. core/fm1sync.c: lb_fm1_list, lb_fm1_put /
+  lb_fm1_take (picks: kind, from, to; on the objects' buffers, the firmware's structs: a kick memory across settings,
+  steps, km2, klab, kfxm, kx2.m, the one playing in the settings' live fields; a pattern in its group's three objects,
+  the group in RAM in OBJ_PAT / OBJ_STEP too, a group never saved made blank, its bars 3-4 in OBJ_DX; a track in
+  pats.trk, steps.tb (its breaks translated), steps.tk), lb_kick_read / lb_fm1_put_kicks / lb_vst_put_kicks (blobs:
+  "LBK1", size, the kick whole), lbcore.c lb_kick_render (the blob as the kick playing, stopped, one hit through the
+  firmware's engine, the state put back: lbsnap). The image always every object in order (the FM-1 checks them all).
+  Checked: a put restored in the firmware's host simulator, its backup again holds the picks (scratch test).
   Next: a song arranger (the tracks' items), the kick's picture, a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.

@@ -49,6 +49,29 @@ int main(void)
     run(500);
     lb_model(&b);
     check(!strcmp(b.dom, "PATTERN"), "still on PATTERN, still answering");
+    {                                    /* the pick and the library: an FM-1 backup (the VST's own, exported), a kick into
+                                          * it, heard, the rest as it was */
+        static uint8_t img[200000], out[200000], blob[8192];
+        static float lr[2 * 22050];
+        char rep[512];
+        lb_list_t l0, l1;
+        lb_pick_t pk = { LB_PICK_KICK, 6, 2, 0 };
+        uint32_t m = lb_fm1_export(img, sizeof img, rep, sizeof rep), m2;
+        check(m > 0 && lb_fm1_list(img, m, &l0) == 0, "a backup listed");
+        m2 = lb_fm1_put(img, m, &pk, 1, out, sizeof out, rep, sizeof rep);
+        check(m2 > 0 && lb_fm1_list(out, m2, &l1) == 0 && !strcmp(l1.kick[2], l0.kick[6]) && !strcmp(l1.kick[3], l0.kick[3]),
+              "K7 into its K3, K4 as it was");
+        check(lb_kick_size() <= sizeof blob && lb_kick_read(out, m2, 2, blob), "a kick as a blob");
+        lb_model(&a);
+        check(lb_kick_render(blob, lr, 22050) == 22050, "a kick heard");
+        {
+            double e = 0;
+            for (i = 0; i < 2 * 22050; i++) e += (double)lr[i] * lr[i];
+            check(e > 1.0, "it sounds");
+        }
+        lb_model(&b);
+        check(!strcmp(a.dom, b.dom) && !memcmp(a.kval, b.kval, sizeof a.kval), "the VST as it was after hearing it");
+    }
     printf("%s\n", bad ? "FAILED" : "OK");
     return bad != 0;
 }

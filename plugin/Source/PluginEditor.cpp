@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "Ui.h"
+#include "Exchange.h"
 #include <set>
 
 using LBE = LoafBreakerEditor;
@@ -1298,6 +1299,20 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
     getConstrainer()->setFixedAspectRatio((double) W / H);
     setSize(1200, 750);
     startTimerHz(30);
+    if (juce::SystemStats::getEnvironmentVariable("LOAF_TEST_OPEN", {}) == "gestion")   // (tests: the manager at once)
+        juce::Timer::callAfterDelay(1500, [this] { openManager(); });
+}
+
+void LoafBreakerEditor::openManager()
+{
+    juce::DialogWindow::LaunchOptions o;
+    o.content.setOwned(new ExchangeView(proc));
+    o.dialogTitle = "LOAF BREAKER - GESTION (VST, BIBLIOTHEQUE, FM-1)";
+    o.dialogBackgroundColour = ui::cur().bg;
+    o.escapeKeyTriggersCloseButton = true;
+    o.useNativeTitleBar = true;
+    o.resizable = false;
+    o.launchAsync();
 }
 
 LoafBreakerEditor::~LoafBreakerEditor() { stopTimer(); }
@@ -1494,11 +1509,15 @@ void LoafBreakerEditor::menu()
     skins.addItem(100 + ui::persoIndex(), "PERSO", true, ui::persoIndex() == ui::curIndex());
     skins.addItem(98, "Regler PERSO (couleur par couleur)...");
     juce::PopupMenu fm1;
+    fm1.addItem(205, "GESTION: kicks, patterns, tracks, bibliotheque...");
+    fm1.addSeparator();
     fm1.addItem(201, "Envoyer tout au FM-1");
     fm1.addItem(202, "Recuperer tout du FM-1");
     fm1.addItem(203, "Exporter une sauvegarde FM-1 (.bak)...");
     fm1.addItem(204, "Importer une sauvegarde FM-1 (.bak)...");
     juce::PopupMenu mm;
+    mm.addItem(3, "GESTION: VST, bibliotheque de kicks, FM-1...");
+    mm.addSeparator();
     mm.addSubMenu("Skin", skins);
     mm.addItem(1, "Clavier (touches)...");
     mm.addItem(2, "Apercu du FM-1 (fenetre flottante)", true, showMachine);
@@ -1522,6 +1541,8 @@ void LoafBreakerEditor::menu()
             return;
         }
         if (r == 2) { self->toggleMachine(); return; }
+        if (r == 3) { self->openManager(); return; }
+        if (r == 205) { self->openManager(); return; }
         auto& p = self->proc;
         auto progress = [self](int pct, const juce::String& t) { if (self) self->toast(pct >= 0 && pct < 100 ? t + " " + juce::String(pct) + "%" : t); };
         if (r == 201 || r == 203) {

@@ -552,3 +552,34 @@ int lb_set(int part, int knob, int steps)
         lb_enc(LB_ALGO, -1);
     return done;
 }
+/* a kick heard alone (FLEXOR: "écouter sur le PC les kicks de la machine que je vais remplacer"): the blob put in as
+ * the kick playing, the transport stopped, one hit rendered through the firmware's own engine and output (its EQ, FX,
+ * the limiter), `frames` stereo frames at 44.1 kHz; then the core exactly as it was. The frames rendered, 0 failed */
+uint32_t lb_kick_render(const uint8_t *blob, float *lr, uint32_t frames)
+{
+    sy_kobjs_t o;
+    sy_kick_t c;
+    uint32_t i;
+    if (!sy_kblob_ok(blob) || !lb_snap_ready())
+        return 0;
+    memcpy(&c, blob + 8, sizeof c);
+    snap_take(lb_snapbuf);
+    brk_play(0);
+    o.S = &set, o.ST = &steps, o.K2 = &km2, o.KL = &klab, o.KF = &kfxm, o.X = kx2.m;
+    sy_kick_put(&o, set.kslot % KICK_MEMS, &c);
+    keq_flat = 0u;
+    changed_kick();
+    changed_fx();
+    for (i = 0; i < 40u; i++)            /* (its settings to the engine, the stop's tails out) */
+        lb_tick1();
+    {
+        static float sink[2 * 256];
+        for (i = 0; i < 8u; i++)
+            lb_audio(sink, 256);         /* (what still rang: out) */
+    }
+    kick_hit();
+    lb_tick1();
+    lb_audio(lr, frames);
+    snap_put(lb_snapbuf);
+    return frames;
+}

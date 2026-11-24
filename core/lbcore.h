@@ -34,7 +34,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 7
+#define LB_ABI 9
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -118,7 +118,31 @@ LB_API int lb_set(int part, int knob, int steps);
  * an FM-1 backup into the store (0 done, 1 not one, 2 damaged), then the core booted again from lb_flash_get */
 LB_API uint32_t lb_fm1_export(uint8_t *out, uint32_t cap, char *report, uint32_t rcap);
 LB_API int lb_fm1_import(const uint8_t *img, uint32_t n, char *report, uint32_t rcap);                      /* SAVE: everything into the flash image */
-LB_API void lb_sync(int on);                    /* follow the MIDI clock in (tempo, start, stop) */
+LB_API void lb_sync(int on);
+/* the pick (FLEXOR: "exporter ou importer des choses, patterns ou tracks ou kicks"): some kicks (0..19), patterns
+ * (0..63), tracks (0..7) between the VST and an FM-1 backup, the rest of the other side as it was */
+enum { LB_PICK_KICK, LB_PICK_PATTERN, LB_PICK_TRACK };
+typedef struct { uint8_t kind, from, to, rsv; } lb_pick_t;
+typedef struct {
+    char kick[20][20];                   /* each kick memory's PRESET name */
+    int kick_live;                       /* the kick playing (0..19) */
+    uint8_t pat[64];                     /* 0 never saved, 1 empty, 2 notes on it */
+    uint8_t trk[8];                      /* each track's items */
+} lb_list_t;
+LB_API int lb_fm1_list(const uint8_t *img, uint32_t n, lb_list_t *o);   /* img 0: the VST's; 0 done */
+LB_API uint32_t lb_fm1_put(const uint8_t *fm1, uint32_t n, const lb_pick_t *p, int np, uint8_t *out, uint32_t cap,
+                           char *report, uint32_t rcap);   /* VST -> the FM-1's backup: the new image's length */
+LB_API int lb_fm1_take(const uint8_t *fm1, uint32_t n, const lb_pick_t *p, int np, char *report, uint32_t rcap);
+                                         /* the FM-1's backup -> the VST's store (then a fresh core): the picks taken */
+/* one kick whole as a blob (the plugin's library: each a file, named, in folders): its size; read from kick memory k of
+ * an FM-1 backup (img) or the VST's (img 0); heard alone (stereo 44.1 kHz frames, the core as it was after); put into
+ * an FM-1 backup's memories (the new image) or the VST's (its store, then a fresh core) */
+LB_API uint32_t lb_kick_size(void);
+LB_API int lb_kick_read(const uint8_t *img, uint32_t n, int k, uint8_t *blob);
+LB_API uint32_t lb_kick_render(const uint8_t *blob, float *lr, uint32_t frames);
+LB_API uint32_t lb_fm1_put_kicks(const uint8_t *fm1, uint32_t n, const uint8_t *blobs, const uint8_t *to, int nk,
+                                 uint8_t *out, uint32_t cap);
+LB_API int lb_vst_put_kicks(const uint8_t *blobs, const uint8_t *to, int nk);                    /* follow the MIDI clock in (tempo, start, stop) */
 #ifdef __cplusplus
 }
 #endif

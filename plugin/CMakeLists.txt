@@ -29,7 +29,8 @@ juce_add_plugin(LoafBreaker
 juce_add_binary_data(LoafAssets SOURCES Resources/BarlowCondensed-Medium.ttf Resources/BarlowCondensed-SemiBold.ttf
     Resources/BarlowCondensed-Bold.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
 target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp
-    Source/Ui.cpp Source/KeyMap.cpp)
+    Source/Ui.cpp Source/KeyMap.cpp
+        Source/Exchange.cpp)
 target_include_directories(LoafBreaker PRIVATE ../core)
 target_compile_definitions(LoafBreaker PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0)
