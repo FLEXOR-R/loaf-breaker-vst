@@ -62,7 +62,7 @@ jobs:
           path: build
       - name: The plugin (JUCE, MSVC)
         run: |
-          cmake -S plugin -B build/cmake -G "Visual Studio 17 2022" -A x64
+          cmake -S plugin -B build/cmake -A x64   # (the Visual Studio the runner has: 2026 on windows-latest)
           cmake --build build/cmake --config Release --target LoafBreaker_VST3 LoafBreaker_Standalone lbtest -- /m
       - name: The core beside the plugin; the checks
         shell: bash
