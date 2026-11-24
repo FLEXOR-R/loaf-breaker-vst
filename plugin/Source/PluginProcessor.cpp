@@ -17,6 +17,10 @@ LoafBreakerProcessor::LoafBreakerProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       params(*this, nullptr, "LOAF", layout())
 {
+    fifo.assign(2 * 8192, 0.0f);          // (before any prepareToPlay: the idle pump uses them too)
+    tmpL.assign(8192, 0.0f);
+    tmpR.assign(8192, 0.0f);
+    chunk.assign(2 * 256, 0.0f);
     boot();
 }
 
@@ -178,6 +182,7 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     const juce::ScopedTryLock sl(lock);
     if (! sl.isLocked() || ! ready || ! core.loaded())
         return;
+    lastAudioMs = juce::Time::getMillisecondCounterHiRes();
     drainCommands();
     juce::MidiBuffer events;
     if (params.getRawParameterValue("sync")->load() > 0.5f)
@@ -240,6 +245,32 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     uint32_t pkt;
     while (core.midiOut(&pkt))           // (the core's MIDI out: not passed on yet)
         ;
+}
+
+void LoafBreakerProcessor::idlePump()
+{
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (now - lastAudioMs.load() < 250.0) {
+        idleFrom = 0.0;
+        return;
+    }
+    if (idleFrom == 0.0) {
+        idleFrom = now;
+        return;
+    }
+    const juce::ScopedTryLock sl(lock);
+    if (! sl.isLocked() || ! ready || ! core.loaded())
+        return;
+    drainCommands();
+    const int frames = juce::jlimit(0, 44100 / 4, (int) ((now - idleFrom) * CORE_RATE / 1000.0));
+    idleFrom += frames * 1000.0 / CORE_RATE;
+    int left = frames;
+    while (left > 0) {                   // (the sound drawn and dropped, in pieces the FIFO holds)
+        const int m = juce::jmin(left, 256);
+        produceCore(m);
+        fifoN = 0;
+        left -= m;
+    }
 }
 
 bool LoafBreakerProcessor::screenIfNew(uint32_t& serial, uint16_t* dst)

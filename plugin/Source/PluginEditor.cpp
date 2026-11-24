@@ -7,8 +7,15 @@ const char* const BTN_NAME[14] = { "FX", "SEL", "ENV", "LFO", "EDIT", "GLO", "HO
 const char* const ENC_NAME[7] = { "SELECT", "ALGORITHM", "PRESETS", "K1", "K2", "K3", "K4" };
 // the FM-1's keys, F3 .. G5: black where a piano's are
 bool isBlack(int k) { const int n = (k + 5) % 12; return n == 1 || n == 3 || n == 6 || n == 8 || n == 10; }
-// the computer's keyboard: two rows of keys for the 27 (white on the letter rows, black on the rows above)
-const char* const KB = "q2w3er5t6y7ui9o0p[=]azsxdcvgbhnjm";
+// the computer's keyboard: the white keys (the slices) on two letter rows, the black ones (the pads) on the numbers
+const char* const WHITE_KB = "qwertyuiasdfghjk";
+const char* const BLACK_KB = "1234567890-";
+char kbOf(int k)
+{
+    int w = 0, b = 0;
+    for (int i = 0; i < k; ++i) (isBlack(i) ? b : w)++;
+    return isBlack(k) ? BLACK_KB[b] : WHITE_KB[w];
+}
 }
 
 struct LoafBreakerEditor::PanelButton : juce::Component
@@ -106,7 +113,7 @@ struct LoafBreakerEditor::Keys : juce::Component
                 g.fillRoundedRectangle(r, 4.0f);
                 g.setColour(on ? BG : isBlack(k) ? DIM : juce::Colour(0xff6c6264));
                 g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-                g.drawText(juce::String::charToString((juce::juce_wchar) juce::CharacterFunctions::toUpperCase((juce::juce_wchar) KB[k])),
+                g.drawText(juce::String::charToString((juce::juce_wchar) juce::CharacterFunctions::toUpperCase((juce::juce_wchar) kbOf(k))),
                            r.removeFromBottom(18.0f), juce::Justification::centred);
             }
     }
@@ -202,6 +209,7 @@ void LoafBreakerEditor::paint(juce::Graphics& g)
 
 void LoafBreakerEditor::timerCallback()
 {
+    proc.idlePump();                     // (no audio running: the firmware kept going all the same)
     if (proc.screenIfNew(serial, px.data())) {
         juce::Image::BitmapData bd(screen, juce::Image::BitmapData::writeOnly);
         for (int y = 0; y < 240; ++y)
@@ -224,14 +232,14 @@ bool LoafBreakerEditor::keyPressed(const juce::KeyPress& k)
         proc.send(LoafBreakerProcessor::CmdButton, 10, 0);
         return true;
     }
-    return c != 0 && std::strchr(KB, c) != nullptr;
+    return c != 0 && (std::strchr(WHITE_KB, c) != nullptr || std::strchr(BLACK_KB, c) != nullptr);
 }
 
 bool LoafBreakerEditor::keyStateChanged(bool)
 {
     bool used = false;
     for (int k = 0; k < 27; ++k) {
-        const bool down = juce::KeyPress::isKeyCurrentlyDown((int) (unsigned char) KB[k]);
+        const bool down = juce::KeyPress::isKeyCurrentlyDown((int) (unsigned char) kbOf(k));
         if (down != ((heldKeys >> k & 1u) != 0)) {
             heldKeys ^= 1u << k;
             keys->press(k, down);

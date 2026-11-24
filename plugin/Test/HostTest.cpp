@@ -1,5 +1,5 @@
 // LOAF BREAKER VST: a host's check, run by the CI: the VST3 loaded as a DAW does, 48 kHz, 512-frame blocks, the host's
-// transport playing at 170 BPM from bar 1: LOAF BREAKER must follow (playing, sound), its state must reload, then the
+// transport playing at 170 BPM (or argv[3]) from bar 1: LOAF BREAKER must follow (playing, sound), its state must reload, then the
 // host stops and it must stop. Writes the sound to a WAV beside it. lbtest PATH.vst3 OUT.wav
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -49,6 +49,7 @@ int main(int argc, char** argv)
     std::printf("loaded in %.0f ms\n", juce::Time::getMillisecondCounterHiRes() - t0);
     PlayHead ph;
     ph.rate = rate;
+    if (argc > 3) ph.bpm = std::atof(argv[3]);
     p->setPlayHead(&ph);
     p->enableAllBuses();
     p->prepareToPlay(rate, block);

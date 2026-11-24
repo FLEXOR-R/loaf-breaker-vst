@@ -37,6 +37,7 @@ public:
     bool screenIfNew(uint32_t& serial, uint16_t* dst);   // the 240 x 240 screen (RGB565), when it changed
     void ledsCopy(uint8_t* dst, size_t n);
     juce::String status() const;
+    void idlePump();                     // the editor's timer: the core run silently while no audio runs
 
     juce::AudioProcessorValueTreeState params;
 
@@ -79,6 +80,8 @@ private:
     uint8_t ledBuf[64] {};
     std::atomic<int> playingNow { 0 };
     int msSinceScreen = 0;
+    std::atomic<double> lastAudioMs { 0.0 };
+    double idleFrom = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoafBreakerProcessor)
 };
