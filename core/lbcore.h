@@ -30,10 +30,11 @@ typedef struct {
     int pattern;                         /* 1..64 */
     char say[2][24];                     /* the header's message (app_say), "" none */
     uint32_t say_n;                      /* moves with each new message */
+    int skin;                            /* the FM-1's skin (SETUP K1), 0..23 */
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 6
+#define LB_ABI 7
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */

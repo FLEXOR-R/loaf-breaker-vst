@@ -248,6 +248,7 @@ void lb_model(lb_model_t *m)
         lb_copy(m->say[1], ui.msg[1], sizeof m->say[1]);
     }
     m->say_n = ui.msg_until;
+    m->skin = (int)skin_idx();
 }
 
 /* the break playing's waveform: n columns, each its peak and its low / mid / high energy (one-pole splits, as the

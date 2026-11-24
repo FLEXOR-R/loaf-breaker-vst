@@ -84,7 +84,7 @@ bool Core::load(juce::String& error)
     LB_FN(breaks, "lb_breaks") LB_FN(fm1Export, "lb_fm1_export")
     LB_FN(model, "lb_model") LB_FN(wave, "lb_wave") LB_FN(keyIndex, "lb_key_index") LB_FN(fm1Import, "lb_fm1_import")
 #undef LB_FN
-    if (abi() != 6) {
+    if (abi() != 7) {
         error = "LOAF BREAKER: the core's version does not match the plugin's";
         unload();
         return false;

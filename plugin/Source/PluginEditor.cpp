@@ -100,7 +100,7 @@ struct Header : Part
         g.drawText("LOAF BREAKER", 98, 12, 280, 36, juce::Justification::centredLeft);
         g.setColour(sk.dim);
         g.setFont(ui::label(10.0f));
-        g.drawText("BY LOAF LORD  -  BREAKS, KICKS, CHAOS", 100, 48, 280, 14, juce::Justification::centredLeft);
+        g.drawText("BY FLEXOR", 100, 48, 280, 14, juce::Justification::centredLeft);
         // tempo
         const auto& m = ed.m;
         g.setColour(sk.dim);
@@ -727,11 +727,7 @@ struct SeqPanel : Part
     juce::Point<float> downAt;
     static constexpr float HEAD_W = 186.0f, BANK_H = 34.0f, RULER_H = 18.0f;
     static const char* laneName(int r) { static const char* N[5] = { "BREAK", "KICK", "SNARE", "HAT", "CLAP" }; return N[r]; }
-    juce::Colour laneCol(int r) const
-    {
-        const auto& sk = s();
-        switch (r) { case 0: return sk.ink; case 1: return sk.hot; case 2: return sk.accent; case 3: return sk.ink.withAlpha(0.75f); default: return sk.accent.brighter(0.3f); }
-    }
+    juce::Colour laneCol(int r) const { return r == selRow ? s().hot : s().accent; }   // (the skin's, as the FM-1's SEQ)
     juce::Rectangle<float> gridArea() const { return { HEAD_W + 8.0f, BANK_H + RULER_H + 8.0f, getWidth() - HEAD_W - 16.0f, rowsH() }; }
     float rowH(int r) const { return r == 0 ? 84.0f : r == 1 ? 60.0f : 52.0f; }
     float rowsH() const { float h = 0; for (int r = 0; r < 5; ++r) h += rowH(r) + 4.0f; return h; }
@@ -826,40 +822,57 @@ struct SeqPanel : Part
     }
     juce::Rectangle<float> soundBox(int r) const { return { 22.0f, rowY(r) + 24.0f, HEAD_W - 30.0f, 20.0f }; }
     juce::Rectangle<float> lenBox(int r, int i) const { return { 104.0f + i * 26.0f, rowY(r) + 3.0f, 24.0f, 18.0f }; }
+    // a drum's step, as the FM-1's SEQ draws it in its skin (seq.c seq_picture): empty, the skin's block (every fourth
+    // its line); on, its secondary colour (the lane edited: its vivid one); the step playing, the skin's white; its HITS
+    // split it, a CHANCE darkens its lower half, a NUDGE a white mark how late, a kick's note a white line on top
     void drawDrumStep(juce::Graphics& g, int r, juce::Rectangle<float> c, int i, bool echo, bool sel, bool now)
     {
         const auto& sk = s();
         const bool o = on(r, i);
         const uint8_t b = sb(r, i);
-        const juce::Colour lc = laneCol(r);
-        g.setColour(o ? lc.withMultipliedAlpha(echo ? 0.3f : ((b >> 2 & 7) && (b >> 2 & 7) < 6 ? 0.55f : 1.0f))
-                      : (i % 4 == 0 ? sk.panel2.brighter(0.1f) : sk.panel2).withMultipliedAlpha(echo ? 0.4f : 1.0f));
+        const float fade = echo ? 0.35f : 1.0f;
+        juce::Colour col = o ? (r == selRow ? sk.hot : sk.accent) : (i % 4 == 0 ? sk.line : sk.panel2);
+        if (now) col = sk.white;
+        g.setColour(col.withMultipliedAlpha(fade));
         g.fillRect(c);
+        if (now)                                  // (the white frame, the step's own inside)
+            g.setColour((o ? (r == selRow ? sk.hot : sk.accent) : sk.panel2).withMultipliedAlpha(fade)), g.fillRect(c.reduced(3.0f));
         if (o && ! echo) {
             const int hits = (b & 3) + 1;
-            if (hits > 1)                         // HITS: its strokes
-                for (int k = 0; k < hits; ++k) {
-                    g.setColour(sk.bg.withAlpha(0.7f));
-                    g.fillRect(c.getX() + 2.0f, c.getY() + 4.0f + k * 6.0f, c.getWidth() - 4.0f, 2.0f);
-                }
-            if (b >> 5) {                         // NUDGE: a mark moved right
+            for (int k = 1; k < hits; ++k) {      // HITS: the step split
                 g.setColour(sk.bg);
-                g.fillRect(c.getX() + c.getWidth() * (0.15f + 0.1f * (b >> 5)), c.getBottom() - 6.0f, 3.0f, 4.0f);
+                g.fillRect(c.getX() + c.getWidth() * k / hits, c.getY() + 2.0f, 1.5f, c.getHeight() - 4.0f);
             }
-            if (r == 1 && ed.seq.note[i]) {       // the kick's note
+            if ((b >> 2 & 7) && (b >> 2 & 7) < 6) {   // CHANCE: its lower half the block's
+                g.setColour(sk.panel2.withAlpha(0.85f));
+                g.fillRect(c.withTrimmedTop(c.getHeight() * 0.5f).reduced(1.0f, 1.0f));
+                g.setColour(sk.bg);
+                g.setFont(ui::value(10.0f));
+                static const char* CH[6] = { "", "75", "50", "25", "1:2", "2:2" };
+                g.drawText(CH[b >> 2 & 7], c.withTrimmedTop(c.getHeight() * 0.5f), juce::Justification::centred);
+            }
+            if (b >> 5) {                         // NUDGE: a white mark, how late
+                g.setColour(sk.white);
+                g.fillRect(c.getX() + (c.getWidth() - 4.0f) * (b >> 5) / 8.0f, c.getBottom() - 4.0f, 4.0f, 3.0f);
+            }
+            if (r == 1 && ed.seq.note[i]) {       // the kick's note: a white line on top, its value
+                g.setColour(sk.white);
+                g.fillRect(c.getX() + 1.0f, c.getY(), c.getWidth() - 2.0f, 3.0f);
                 g.setColour(sk.bg);
                 g.setFont(ui::value(11.0f));
-                g.drawText((ed.seq.note[i] > 0 ? "+" : "") + juce::String(ed.seq.note[i]), c.withTrimmedTop(c.getHeight() - 16.0f), juce::Justification::centred);
+                g.drawText((ed.seq.note[i] > 0 ? "+" : "") + juce::String(ed.seq.note[i]), c.withTrimmedTop(4.0f).withHeight(14.0f), juce::Justification::centred);
             }
         }
-        if (now) { g.setColour(sk.hot); g.drawRect(c.expanded(1.0f), 2.0f); }
-        if (sel) { g.setColour(sk.accent); g.drawRect(c.expanded(1.0f), 2.0f); }
+        if (sel) { g.setColour(sk.hot); g.drawRect(c.expanded(2.0f), 2.0f); }
     }
+    // a break's step: its slice's number in the skin's vivid colour (LOOP "." and OFF "-" its labels'), reversed or
+    // repeated a mark in its secondary; the step playing in the vivid one, its number dark (seq.c)
     void drawBreakStep(juce::Graphics& g, juce::Rectangle<float> c, int i, bool echo, bool sel, bool now)
     {
         const auto& sk = s();
         const uint8_t* b = ed.seq.brk[i & 31];
-        g.setColour((i % 4 == 0 ? sk.panel2.brighter(0.1f) : sk.panel2).withMultipliedAlpha(echo ? 0.5f : 1.0f));
+        const float fade = echo ? 0.4f : 1.0f;
+        g.setColour((now ? sk.hot : i % 4 == 0 ? sk.line : sk.panel2).withMultipliedAlpha(fade));
         g.fillRect(c);
         // its sound: the slice it plays (LOOP: the break where it is), as a waveform
         const auto& w = ed.wave;
@@ -867,9 +880,9 @@ struct SeqPanel : Part
         float a0 = -1.0f, a1 = -1.0f;
         if (b[0] == 1) { a0 = i / 32.0f; a1 = (i + 1) / 32.0f; }
         else if (b[0] >= 2 && ! w.slices.empty()) {
-            const int s = juce::jlimit(0, (int) w.slices.size() - 1, b[0] - 2);
-            a0 = w.slices[(size_t) s];
-            a1 = s + 1 < (int) w.slices.size() ? w.slices[(size_t) s + 1] : 1.0f;
+            const int sl = juce::jlimit(0, (int) w.slices.size() - 1, b[0] - 2);
+            a0 = w.slices[(size_t) sl];
+            a1 = sl + 1 < (int) w.slices.size() ? w.slices[(size_t) sl + 1] : 1.0f;
         }
         if (n > 0 && a0 >= 0.0f) {
             const float mid = c.getCentreY() + 6.0f, half = c.getHeight() * 0.33f;
@@ -879,23 +892,26 @@ struct SeqPanel : Part
                 if (rev) t = 1.0f - t;
                 const int col = juce::jlimit(0, n - 1, (int) ((a0 + (a1 - a0) * t) * n));
                 const float pk = w.cols[(size_t) (4 * col)];
-                g.setColour((b[0] == 1 ? sk.dim : sk.ink).withMultipliedAlpha(echo ? 0.35f : 1.0f));
+                g.setColour((now ? sk.bg : b[0] == 1 ? sk.dim : sk.accent).withMultipliedAlpha(fade));
                 g.fillRect(c.getX() + x, mid - pk * half, 1.5f, juce::jmax(1.0f, 2.0f * pk * half));
             }
         }
-        g.setColour(b[0] == 0 ? sk.dim : b[0] == 1 ? sk.dim : sk.hot);
+        g.setColour(now ? sk.bg : b[0] >= 2 ? sk.hot : sk.dim);
         g.setFont(ui::value(13.0f));
-        g.drawText(b[0] == 0 ? "-" : b[0] == 1 ? "" : juce::String(b[0] - 1), c.withHeight(16.0f), juce::Justification::centred);
+        g.drawText(b[0] == 0 ? "-" : b[0] == 1 ? "." : juce::String(b[0] - 1), c.withHeight(16.0f), juce::Justification::centred);
+        if ((b[2] & 7) && ! echo) {              // reversed or repeated: a mark
+            g.setColour(now ? sk.bg : sk.accent);
+            g.fillRect(c.getX() + 2.0f, c.getBottom() - 3.0f, c.getWidth() - 4.0f, 2.0f);
+        }
         juce::String tags;
         if ((int8_t) b[1]) tags << ((int8_t) b[1] > 0 ? "+" : "") << (int) (int8_t) b[1];
         if (b[2] >> 1 & 3) tags << " x" << ((b[2] >> 1 & 3) + 1);
         if (b[2] & 1) tags << " R";
         if (tags.isNotEmpty()) {
-            g.setColour(sk.accent);
-            ui::fitText(g, tags.trim(), c.withTrimmedTop(c.getHeight() - 14.0f), ui::label(9.5f));
+            g.setColour(now ? sk.bg : sk.ink);
+            ui::fitText(g, tags.trim(), c.withTrimmedTop(c.getHeight() - 16.0f).withTrimmedBottom(3.0f), ui::label(9.5f));
         }
-        if (now) { g.setColour(sk.hot); g.drawRect(c.expanded(1.0f), 2.0f); }
-        if (sel) { g.setColour(sk.accent); g.drawRect(c.expanded(1.0f), 2.0f); }
+        if (sel) { g.setColour(sk.hot); g.drawRect(c.expanded(2.0f), 2.0f); }
     }
     // ---- the inspector: the step, its bar, the lane
     struct Ctl { juce::String name, val; int op, c; int n, cur; juce::StringArray seg; juce::Rectangle<float> r; };
@@ -1305,6 +1321,7 @@ void LoafBreakerEditor::timerCallback()
         root->tabs.repaint();
         root->pads.repaint();
         root->wave.repaint();
+        if (ui::fm1SkinIs(m.skin)) root->repaint();   // (the VST follows the FM-1's skin: it changed)
         if (juce::String(m.dom) != lastDom) { lastDom = m.dom; opts.clear(); asked.clear(); }   // (another domain: its lists looked at again)
         if (seqView() != root->seqShown) root->resized();
         // a source asked for (SOUNDS: KICK, DRUMS, BREAK): SEL + EDIT until it is the one
@@ -1364,6 +1381,68 @@ bool LoafBreakerEditor::seqView() const
     const juce::String t = m.tab_on >= 0 && m.tab_on < m.ntabs ? juce::String(m.tabs[m.tab_on]) : juce::String();
     return t != "GROOVE" && t != "SETTINGS";
 }
+// PERSO: each of the skin's nine colours picked (the one in use to start from)
+struct PersoEditor : juce::Component, juce::ChangeListener
+{
+    explicit PersoEditor(std::function<void()> changed) : onChange(std::move(changed))
+    {
+        k = ui::cur();
+        sel.setCurrentColour(*field(0), juce::dontSendNotification);
+        sel.addChangeListener(this);
+        addAndMakeVisible(sel);
+        setSize(560, 380);
+    }
+    std::function<void()> onChange;
+    ui::Skin k;
+    int pick = 0;
+    juce::ColourSelector sel { juce::ColourSelector::showColourspace | juce::ColourSelector::showSliders | juce::ColourSelector::showColourAtTop };
+    static constexpr int N = 9;
+    juce::Colour* field(int i) { juce::Colour* f[N] = { &k.bg, &k.panel, &k.panel2, &k.line, &k.ink, &k.dim, &k.accent, &k.hot, &k.white }; return f[i]; }
+    static const char* label(int i) { static const char* L[N] = { "FOND", "PANNEAUX", "CASES (PAS VIDES)", "LIGNES", "TEXTE", "LABELS", "ACCENT (PAS ALLUMES)", "VIF (LIGNE CHOISIE)", "BLANC (TETE DE LECTURE)" }; return L[i]; }
+    juce::Rectangle<int> row(int i) const { return { 10, 10 + i * 40, 220, 34 }; }
+    void resized() override { sel.setBounds(240, 10, 310, 360); }
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(k.bg);
+        for (int i = 0; i < N; ++i) {
+            auto r = row(i);
+            g.setColour(*field(i));
+            g.fillRect(r.removeFromLeft(34));
+            g.setColour(i == pick ? k.hot : k.line);
+            g.drawRect(row(i), i == pick ? 2 : 1);
+            g.setColour(k.ink);
+            g.setFont(ui::label(13.0f));
+            g.drawText(label(i), r.reduced(8, 0), juce::Justification::centredLeft);
+        }
+    }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        for (int i = 0; i < N; ++i)
+            if (row(i).contains(e.getPosition())) { pick = i; sel.setCurrentColour(*field(i), juce::dontSendNotification); repaint(); }
+    }
+    void changeListenerCallback(juce::ChangeBroadcaster*) override
+    {
+        *field(pick) = sel.getCurrentColour();
+        ui::setPerso(k);
+        ui::setSkin(ui::persoIndex());
+        repaint();
+        if (onChange) onChange();
+    }
+};
+
+void LoafBreakerEditor::persoEditor()
+{
+    juce::Component::SafePointer<LoafBreakerEditor> self(this);
+    juce::DialogWindow::LaunchOptions o;
+    o.content.setOwned(new PersoEditor([self] { if (self) self->root->repaint(); }));
+    o.dialogTitle = "LOAF BREAKER - SKIN PERSO";
+    o.dialogBackgroundColour = ui::cur().bg;
+    o.escapeKeyTriggersCloseButton = true;
+    o.useNativeTitleBar = true;
+    o.resizable = false;
+    o.launchAsync();
+}
+
 void LoafBreakerEditor::toggleMachine()
 {
     showMachine = ! showMachine;
@@ -1405,8 +1484,15 @@ void LoafBreakerEditor::toast(const juce::String& t)
 
 void LoafBreakerEditor::menu()
 {
-    juce::PopupMenu skins;
-    for (int i = 0; i < ui::skinCount(); ++i) skins.addItem(100 + i, ui::skin(i).name, true, i == ui::curIndex());
+    juce::PopupMenu skins, fm1Skins;
+    for (int i = 0; i < ui::fm1First(); ++i) skins.addItem(100 + i, ui::skin(i).name, true, i == ui::curIndex());
+    skins.addSeparator();
+    skins.addItem(99, "COMME LE FM-1 (son SETUP)", true, ui::curIndex() == ui::FOLLOW_FM1);
+    for (int i = ui::fm1First(); i < ui::persoIndex(); ++i) fm1Skins.addItem(100 + i, ui::skin(i).name, true, i == ui::curIndex());
+    skins.addSubMenu("Les 24 du FM-1", fm1Skins);
+    skins.addSeparator();
+    skins.addItem(100 + ui::persoIndex(), "PERSO", true, ui::persoIndex() == ui::curIndex());
+    skins.addItem(98, "Regler PERSO (couleur par couleur)...");
     juce::PopupMenu fm1;
     fm1.addItem(201, "Envoyer tout au FM-1");
     fm1.addItem(202, "Recuperer tout du FM-1");
@@ -1422,6 +1508,8 @@ void LoafBreakerEditor::menu()
     mm.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&root->header), [self](int r) {
         if (! self || r == 0) return;
         if (r >= 100 && r < 200) { ui::setSkin(r - 100); self->root->repaint(); return; }
+        if (r == 99) { ui::setSkin(ui::FOLLOW_FM1); self->root->repaint(); return; }
+        if (r == 98) { self->persoEditor(); return; }
         if (r == 1) {
             juce::DialogWindow::LaunchOptions o;
             o.content.setOwned(new KeyMapEditor());

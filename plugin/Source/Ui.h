@@ -8,13 +8,20 @@ namespace ui {
 
 struct Skin {
     const char* name;
-    juce::Colour bg, panel, panel2, line, ink, dim, accent, hot;
+    juce::Colour bg, panel, panel2, line, ink, dim, accent, hot, white;
+    bool fm1 = false;                    // one of the FM-1's 24
 };
-int skinCount();
+int skinCount();                         // the VST's own, the FM-1's 24 (from fm1First()), PERSO last
+int fm1First();
+int persoIndex();
+constexpr int FOLLOW_FM1 = 1000;         // "COMME LE FM-1": the skin the firmware's SETUP has
 const Skin& skin(int i);
 const Skin& cur();                       // the one in use
 int curIndex();
 void setSkin(int i);                     // (kept in the user's settings)
+bool fm1SkinIs(int s);                   // the firmware's skin (0..23); true: the VST follows it and it changed
+Skin perso();
+void setPerso(const Skin& k);
 
 juce::Font label(float h);              // Barlow Condensed SemiBold: the labels
 juce::Font labelBold(float h);          // Barlow Condensed Bold

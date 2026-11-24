@@ -65,6 +65,12 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   the break's 32 steps (each its slice's own waveform), KICK SN HH CP 16/32/64, click / drag to paint, the wheel (a
   break step's slice, a drum's HITS), the step's settings, the bar's and the lane's tools (lbcore `lb_seq`, `lb_step`:
   SEQ's own code and undo; `lb_patterns` the bank's pictures). core/coretest.c checks it all in CI (Linux, Windows).
+  Skins (FLEXOR: "refais les équivalents des skins présents dans la machine ... même idée sur la façon que le skin a
+  d'interagir avec les steps du séquenceur"): the VST's six, the FM-1's 24 (Ui.cpp FM1_RGB, the firmware's SKIN_RGB:
+  its block the panels, its secondary the accent, its values the vivid one, its white), COMME LE FM-1 (lb_model.skin,
+  SETUP's), PERSO (nine colours picked, settings skinPerso); the sequencer as the FM-1's SEQ: steps on in the accent,
+  the lane edited vivid, the playhead white, HITS split, CHANCE the lower half dark, NUDGE a white mark, a note a white
+  line. The header: LOAF BREAKER, BY FLEXOR (FLEXOR: "et c'est tout").
   Next: a song arranger (the tracks' items), the kick's picture, a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
