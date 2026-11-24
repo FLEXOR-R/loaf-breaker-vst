@@ -71,20 +71,25 @@ static juce::Image image(const char* file)
         }
     return {};
 }
+// (FLEXOR, 24 Nov 2026: "la police d'écriture est illisible, ne pas mettre de police pixélisée": Barlow Condensed,
+// OFL, clean and narrow; the sizes the call sites give are scaled to it here)
 juce::Font label(float h)
 {
-    static auto t = face("Silkscreen-Regular.ttf");
-    return t ? juce::Font(juce::FontOptions(t).withHeight(h)) : juce::Font(juce::FontOptions(h));
+    static auto t = face("BarlowCondensed-SemiBold.ttf");
+    const float s = h * 1.45f;
+    return (t ? juce::Font(juce::FontOptions(t).withHeight(s)) : juce::Font(juce::FontOptions(s))).withExtraKerningFactor(0.04f);
 }
 juce::Font labelBold(float h)
 {
-    static auto t = face("Silkscreen-Bold.ttf");
-    return t ? juce::Font(juce::FontOptions(t).withHeight(h)) : juce::Font(juce::FontOptions(h, juce::Font::bold));
+    static auto t = face("BarlowCondensed-Bold.ttf");
+    const float s = h * 1.4f;
+    return (t ? juce::Font(juce::FontOptions(t).withHeight(s)) : juce::Font(juce::FontOptions(s, juce::Font::bold))).withExtraKerningFactor(0.03f);
 }
 juce::Font value(float h)
 {
-    static auto t = face("VT323-Regular.ttf");
-    return t ? juce::Font(juce::FontOptions(t).withHeight(h)) : juce::Font(juce::FontOptions(h));
+    static auto t = face("BarlowCondensed-Medium.ttf");
+    const float s = h * 1.0f;
+    return t ? juce::Font(juce::FontOptions(t).withHeight(s)) : juce::Font(juce::FontOptions(s));
 }
 juce::Image face() { static auto i = image("loaflord_face.png"); return i; }
 juce::Image title() { static auto i = image("loaflord_title.png"); return i; }
@@ -125,6 +130,8 @@ void vignette(juce::Graphics& g, juce::Rectangle<float> r)
 void panel(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& t)
 {
     const auto& s = cur();
+    if (t.isNotEmpty())
+        r = r.withTrimmedTop(9.0f);      // (room for the title's tab, inside the component)
     g.setColour(s.panel);
     g.fillRect(r);
     g.setColour(s.line);
@@ -135,9 +142,9 @@ void panel(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& t)
                     r.getBottomRight().translated(-2, -2) })
         g.fillRect(p.x, p.y, 2.0f, 2.0f);
     if (t.isNotEmpty()) {
-        auto f = label(11.0f);
-        const float w = (float) juce::GlyphArrangement::getStringWidthInt(f, t) + 12.0f;
-        juce::Rectangle<float> tab(r.getX() + 8.0f, r.getY() - 7.0f, w, 14.0f);
+        auto f = label(10.0f);
+        const float w = (float) juce::GlyphArrangement::getStringWidthInt(f, t) + 14.0f;
+        juce::Rectangle<float> tab(r.getX() + 8.0f, r.getY() - 9.0f, w, 18.0f);
         g.setColour(s.bg);
         g.fillRect(tab);
         g.setColour(s.dim);

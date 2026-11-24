@@ -37,7 +37,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   contrôlée ... des contrôles contextuels qui affichent ce qu'ils modifient ... des catégories qui contiennent des
   onglets ... la waveform en permanence, des visuels"; the FM-1 link set aside, "laisse tomber la liaison"): drawn at
   1440 x 900, scaled to the window (PluginEditor.cpp Root). LOAF LORD's look (Ui.cpp: skins LOAF LORD black and bone,
-  the default, BLOOD TOXIC ICE RUST PAPER; Silkscreen and VT323, OFL, in Resources/; the grain and halftone tile, the
+  the default, BLOOD TOXIC ICE RUST PAPER; Barlow Condensed, OFL, in Resources/ (FLEXOR: "la police est illisible, ne pas mettre de
+  police pixélisée": never a pixel font); the grain and halftone tile, the
   vignette; his face and gothic title, Resources/loaflord_*.png from FLEXOR's poster). Header (tempo, break, pattern,
   the FM-1's message, meters, MENU: skin, keyboard, the FM-1's screen on / off, the machine link), the categories
   (LIVE SOUNDS PATTERN SONG MIX EFFECTS ARP SYSTEM: the FM-1's page buttons), the page's tabs (a click: SELECT turned

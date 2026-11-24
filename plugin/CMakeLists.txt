@@ -26,8 +26,8 @@ juce_add_plugin(LoafBreaker
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Drum
     FORMATS ${FORMATS})
-juce_add_binary_data(LoafAssets SOURCES Resources/Silkscreen-Regular.ttf Resources/Silkscreen-Bold.ttf
-    Resources/VT323-Regular.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
+juce_add_binary_data(LoafAssets SOURCES Resources/BarlowCondensed-Medium.ttf Resources/BarlowCondensed-SemiBold.ttf
+    Resources/BarlowCondensed-Bold.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
 target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp
     Source/Ui.cpp Source/KeyMap.cpp)
 target_include_directories(LoafBreaker PRIVATE ../core)

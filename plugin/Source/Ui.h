@@ -1,6 +1,6 @@
 // LOAF BREAKER VST: the look (FLEXOR, 24 Nov 2026: "un style un tout petit peu pixel et dark, dans l'esthétique du
 // personnage qu'elle incarne, loaf lord ... un peu gritty, noir et blanc pour le skin par défaut, garder le système de
-// skin"): the skins, the pixel fonts (Silkscreen, VT323: OFL), the grain over everything, the shared drawing.
+// skin"): the skins, the fonts (Barlow Condensed: OFL), the grain over everything, the shared drawing.
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 
@@ -16,9 +16,9 @@ const Skin& cur();                       // the one in use
 int curIndex();
 void setSkin(int i);                     // (kept in the user's settings)
 
-juce::Font label(float h);              // Silkscreen: the labels, caps
-juce::Font labelBold(float h);
-juce::Font value(float h);              // VT323: the values, the numbers
+juce::Font label(float h);              // Barlow Condensed SemiBold: the labels
+juce::Font labelBold(float h);          // Barlow Condensed Bold
+juce::Font value(float h);              // Barlow Condensed Medium: the values, the numbers
 juce::Image face();                      // LOAF LORD's face
 juce::Image title();                     // the gothic LOAF LORD
 
