@@ -17,6 +17,18 @@ CE QUE LA VERSION PC A EN PLUS DU FM-1
 - Les touches blanches et le split gardes pour chacun des 98 breaks.
 - Le delai DUB jusqu'a 2 secondes (toutes les valeurs a tous les tempos) ; une sortie 24 bits.
 
+LE LIEN AVEC LE FM-1 (bouton FM-1, en haut)
+- "Envoyer tout au FM-1" : tes kicks, patterns, song et reglages du VST vont sur la machine. Le FM-1 doit etre
+  branche en USB, arrete (pas en lecture), avec LOAF BREAKER a jour (la version avec la sauvegarde USB). Il verifie
+  tout puis demande sur son ecran : SEL = oui, HOME = non. Il redemarre avec.
+- "Recuperer tout du FM-1" : l'inverse, ce qui est sur la machine arrive dans le VST.
+- Les breaks sont traduits par leur nom. Un break du VST que le FM-1 n'a pas (le FM-1 en a 8) est remplace par
+  celui du FM-1 au tempo le plus proche ; le message dit lesquels.
+- Si Ableton utilise deja le FM-1 comme clavier MIDI, Windows ne laisse pas le VST l'ouvrir : desactive le FM-1
+  dans Preferences > Link/Tempo/MIDI le temps du transfert, ou passe par la version autonome.
+- "Exporter / Importer une sauvegarde (.bak)" : la meme chose en fichier ; la page Backup du site LOAF BREAKER
+  les envoie aussi au FM-1 depuis Chrome.
+
 DANS ABLETON
 - LOAF BREAKER suit le tempo d'Ableton et demarre a la mesure suivante quand tu lances la lecture
   (case "Host sync" en haut ; decoche-la pour utiliser son propre PLAY).

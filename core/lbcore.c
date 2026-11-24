@@ -5,6 +5,7 @@ const uint8_t *lb_bank_ptr;              /* (LB_BIG: the break bank the plugin l
 uint32_t lb_bank_len;
 #include "rfm1.c"
 #include "lbcore.h"
+#include "fm1sync.c"
 void lb_bank(const uint8_t *p, uint32_t n) { lb_bank_ptr = n >= 16u ? p : 0; lb_bank_len = n; }
 int lb_abi(void) { return LB_ABI; }
 static uint32_t lb_now;
@@ -132,6 +133,7 @@ LB_API int lb_get(int what)
     case 2: return kx2_size();
     case 3: return b ? (int)b->len : 0;
     case 4: return b ? (int)b->rate : 0;
+    case 5: return kx2.chaos[0];
     }
     return -1;
 }

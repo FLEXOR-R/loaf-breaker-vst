@@ -17,6 +17,15 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   objects), the dub line 2 s, the output 24-bit (lb_audio from sim_render). Next limits to lift (the plan): patterns
   all in RAM (no SAVE OR STOP), more kicks, a bigger drum kit, longer breaks and more bars, the player's breaks by
   drag and drop, then the PC interface.
+- FM-1 link (24 Nov 2026, FLEXOR: "envoyer ce que j'ai fait sur le VST sur la machine ... un système de traduction et
+  de synchronisation efficace qui lie les deux"): the firmware's backup and restore over USB (its fm1.toml backup =
+  true, app.h APP_BACKUP_*: magic LBRK). `core/fm1sync.c` (in lbcore.c): lb_fm1_export (the VST's saved objects as an
+  FM-1 backup image) and lb_fm1_import (one into the VST's store, then a fresh core): the breaks translated by name
+  (one the FM-1 lacks: its break of the nearest tempo, reported; the FM-1's own breaks: the VST's first) in set.brk,
+  set.drop_brk, steps.dm[d][2], steps.tb (pattern items), kx2.sp's B; kx2 (24 breaks on the FM-1, 128 here) rebuilt.
+  `plugin/Source/Fm1Link.*`: fm1-base's backup protocol (tools/fm1_backup.py's) on the FM-1's MIDI port, its own
+  thread; the window's FM-1 button: send, fetch, export / import a .bak. Tested: the VST's export restored in the
+  host simulator (scenario restore), its backup imported back (the breaks and CHAOS as they were).
 - `plugin/`: JUCE 9.0.6 (FetchContent, or -DJUCE_DIR=), VST3 + Standalone (AU on a Mac). `Core.cpp` loads a COPY of
   the core library per instance (a temporary file: the firmware's state is global, so each instance has its own;
   setStateInformation reboots a fresh copy). The audio thread runs the core: 44.1 kHz, a core millisecond each 44.1

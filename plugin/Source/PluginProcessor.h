@@ -5,6 +5,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "Core.h"
+#include "Fm1Link.h"
 
 class LoafBreakerProcessor : public juce::AudioProcessor
 {
@@ -40,6 +41,12 @@ public:
     void idlePump();                     // the editor's timer: the core run silently while no audio runs
 
     juce::AudioProcessorValueTreeState params;
+
+    // the FM-1 (FLEXOR: "envoyer ce que j'ai fait sur le VST sur la machine"): the state as an FM-1 backup image
+    // (the breaks translated, core/fm1sync.c) and back; the USB link
+    bool exportFm1(juce::MemoryBlock& image, juce::String& report);
+    bool importFm1(const juce::MemoryBlock& image, juce::String& report);
+    Fm1Link link;
 
 private:
     bool boot();                         // the core loaded and booted (with the saved image, if any)

@@ -345,6 +345,39 @@ void LoafBreakerProcessor::setStateInformation(const void* data, int size)
     boot();                              // a fresh core with this project's image
 }
 
+bool LoafBreakerProcessor::exportFm1(juce::MemoryBlock& image, juce::String& report)
+{
+    const juce::ScopedLock sl(lock);
+    if (! ready || ! core.loaded())
+        return false;
+    image.setSize(100000);
+    char rep[1024] = {};
+    const uint32_t n = core.fm1Export(static_cast<uint8_t*>(image.getData()), (uint32_t) image.getSize(), rep, sizeof rep);
+    image.setSize(n);
+    report = juce::String(rep);
+    return n > 0;
+}
+
+bool LoafBreakerProcessor::importFm1(const juce::MemoryBlock& image, juce::String& report)
+{
+    {
+        const juce::ScopedLock sl(lock);
+        if (! ready || ! core.loaded())
+            return false;
+        char rep[1024] = {};
+        const int r = core.fm1Import(static_cast<const uint8_t*>(image.getData()), (uint32_t) image.getSize(), rep, sizeof rep);
+        report = r == 0 ? juce::String(rep) : r == 1 ? juce::String("Ce n'est pas une sauvegarde LOAF BREAKER.")
+                                                     : juce::String("Sauvegarde abimee.");
+        if (r != 0)
+            return false;
+        juce::MemoryBlock flash(core.flashSize());
+        core.flashGet(static_cast<uint8_t*>(flash.getData()), (uint32_t) flash.getSize());
+        pendingFlash = flash;
+    }
+    boot();                              // a fresh core with it
+    return true;
+}
+
 juce::AudioProcessorEditor* LoafBreakerProcessor::createEditor() { return new LoafBreakerEditor(*this); }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new LoafBreakerProcessor(); }

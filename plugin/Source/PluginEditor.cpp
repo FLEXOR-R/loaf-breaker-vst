@@ -154,6 +154,13 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
     status.setColour(juce::Label::textColourId, DIM);
     status.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(status);
+    fm1.setColour(juce::TextButton::buttonColourId, PANEL.brighter(0.15f));
+    fm1.setColour(juce::TextButton::textColourOffId, INK);
+    fm1.onClick = [this] { fm1Menu(); };
+    addAndMakeVisible(fm1);
+    syncMsg.setColour(juce::Label::textColourId, INK);
+    syncMsg.setFont(juce::FontOptions(13.0f));
+    addAndMakeVisible(syncMsg);
     volumeAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.params, "volume", volume);
     syncAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.params, "sync", sync);
     setWantsKeyboardFocus(true);
@@ -171,10 +178,11 @@ void LoafBreakerEditor::resized()
     auto r = getLocalBounds().reduced(16);
     auto top = r.removeFromTop(36);
     top.removeFromLeft(220);              // (the title, painted)
+    fm1.setBounds(top.removeFromLeft(70).reduced(0, 4));
     status.setBounds(top.removeFromRight(160));
     sync.setBounds(top.removeFromRight(120));
     volume.setBounds(top.removeFromRight(200).reduced(0, 6));
-    r.removeFromTop(10);
+    syncMsg.setBounds(r.removeFromTop(22));
     keys->setBounds(r.removeFromBottom(juce::jmax(90, r.getHeight() / 6)));
     r.removeFromBottom(12);
     const int s = juce::jmin(r.getHeight(), r.getWidth() / 2);
@@ -222,6 +230,70 @@ void LoafBreakerEditor::timerCallback()
         repaint(screenArea);
     }
     status.setText(proc.status(), juce::dontSendNotification);
+}
+
+// the FM-1 menu: send everything to it, fetch everything from it, or the same as a file (.bak: the site's Backup page
+// reads and writes them too)
+void LoafBreakerEditor::fm1Menu()
+{
+    if (proc.link.busy()) {
+        say("Un transfert est en cours...");
+        return;
+    }
+    juce::PopupMenu m;
+    m.addSectionHeader(Fm1Link::portName().isEmpty() ? "FM-1 non branche" : "FM-1 : " + Fm1Link::portName());
+    m.addItem(1, "Envoyer tout au FM-1 (kicks, patterns, song, reglages)");
+    m.addItem(2, "Recuperer tout du FM-1");
+    m.addSeparator();
+    m.addItem(3, "Exporter une sauvegarde FM-1 (.bak)...");
+    m.addItem(4, "Importer une sauvegarde FM-1 (.bak)...");
+    juce::Component::SafePointer<LoafBreakerEditor> self(this);
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&fm1), [self](int r) {
+        if (! self || r == 0) return;
+        auto& p = self->proc;
+        auto progress = [self](int pct, const juce::String& t) {
+            if (self) self->say(pct >= 0 && pct < 100 ? t + "  " + juce::String(pct) + " %" : t);
+        };
+        if (r == 1 || r == 3) {
+            juce::MemoryBlock img;
+            juce::String rep;
+            if (! p.exportFm1(img, rep)) { self->say("Export impossible."); return; }
+            if (r == 1) {
+                self->say(rep);
+                p.link.send(img, progress, [self, rep](bool ok, const juce::String& t, const juce::MemoryBlock&) {
+                    if (self) self->say(ok ? t + "  " + rep : t);
+                });
+            } else {
+                self->chooser = std::make_unique<juce::FileChooser>("Exporter pour le FM-1",
+                    juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("LOAF BREAKER.bak"), "*.bak");
+                self->chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
+                    [self, img, rep](const juce::FileChooser& fc) {
+                        auto f = fc.getResult();
+                        if (! self || f == juce::File()) return;
+                        self->say(f.replaceWithData(img.getData(), img.getSize()) ? "Exporte : " + f.getFileName() + ". " + rep
+                                                                                  : "Ecriture impossible.");
+                    });
+            }
+        } else if (r == 2) {
+            p.link.fetch(progress, [self](bool ok, const juce::String& t, const juce::MemoryBlock& img) {
+                if (! self) return;
+                if (! ok) { self->say(t); return; }
+                juce::String rep;
+                self->say(self->proc.importFm1(img, rep) ? t + "  " + rep : rep);
+            });
+        } else if (r == 4) {
+            self->chooser = std::make_unique<juce::FileChooser>("Importer une sauvegarde FM-1",
+                juce::File::getSpecialLocation(juce::File::userDocumentsDirectory), "*.bak");
+            self->chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                [self](const juce::FileChooser& fc) {
+                    auto f = fc.getResult();
+                    juce::MemoryBlock img;
+                    if (! self || ! f.loadFileAsData(img)) return;
+                    juce::String rep;
+                    self->say(self->proc.importFm1(img, rep) ? "Importe : " + rep : rep);
+                });
+        }
+    });
 }
 
 bool LoafBreakerEditor::keyPressed(const juce::KeyPress& k)

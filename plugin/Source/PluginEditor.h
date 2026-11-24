@@ -32,6 +32,11 @@ private:
     juce::Slider volume;
     juce::ToggleButton sync { "Host sync" };
     juce::Label status;
+    juce::TextButton fm1 { "FM-1" };
+    juce::Label syncMsg;
+    std::unique_ptr<juce::FileChooser> chooser;
+    void fm1Menu();
+    void say(const juce::String& t) { syncMsg.setText(t, juce::dontSendNotification); }
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> volumeAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAtt;
     uint32_t heldKeys = 0;

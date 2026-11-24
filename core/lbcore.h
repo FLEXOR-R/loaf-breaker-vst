@@ -36,7 +36,11 @@ LB_API int lb_flash_set(const uint8_t *in, uint32_t n);   /* before lb_init */
 LB_API void lb_bank(const uint8_t *p, uint32_t n);   /* the break bank (breaks.bank), before lb_init; kept alive by the caller */
 LB_API int lb_breaks(void);
 LB_API int lb_get(int what);                     /* 0 break, 1 breaks, 2 per-break bytes saved, 3 length, 4 rate */                      /* how many breaks there are */
-LB_API void lb_save(void);                      /* SAVE: everything into the flash image */
+LB_API void lb_save(void);
+/* the VST <-> FM-1 translation (fm1sync.c): the state as an FM-1 backup image (LBRK; room: 80 KB), its length or 0;
+ * an FM-1 backup into the store (0 done, 1 not one, 2 damaged), then the core booted again from lb_flash_get */
+LB_API uint32_t lb_fm1_export(uint8_t *out, uint32_t cap, char *report, uint32_t rcap);
+LB_API int lb_fm1_import(const uint8_t *img, uint32_t n, char *report, uint32_t rcap);                      /* SAVE: everything into the flash image */
 LB_API void lb_sync(int on);                    /* follow the MIDI clock in (tempo, start, stop) */
 #ifdef __cplusplus
 }

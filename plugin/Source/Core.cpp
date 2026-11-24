@@ -81,7 +81,7 @@ bool Core::load(juce::String& error)
     LB_FN(turn, "lb_turn") LB_FN(master, "lb_master") LB_FN(screen, "lb_screen") LB_FN(leds, "lb_leds")
     LB_FN(playing, "lb_playing") LB_FN(flashSize, "lb_flash_size") LB_FN(flashGet, "lb_flash_get")
     LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync") LB_FN(bank, "lb_bank")
-    LB_FN(breaks, "lb_breaks")
+    LB_FN(breaks, "lb_breaks") LB_FN(fm1Export, "lb_fm1_export") LB_FN(fm1Import, "lb_fm1_import")
 #undef LB_FN
     if (abi() != 2) {
         error = "LOAF BREAKER: the core's version does not match the plugin's";
