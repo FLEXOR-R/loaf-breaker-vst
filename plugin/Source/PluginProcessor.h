@@ -79,6 +79,7 @@ private:
     uint32_t screenSerial = 0, coreScreenWrites = 0xFFFFFFFFu;
     uint8_t ledBuf[64] {};
     std::atomic<int> playingNow { 0 };
+    std::atomic<int> nBreaks { 0 };
     int msSinceScreen = 0;
     std::atomic<double> lastAudioMs { 0.0 };
     double idleFrom = 0.0;

@@ -38,8 +38,11 @@ bool LoafBreakerProcessor::boot()
         return false;
     if (pendingFlash.getSize() > 0)
         core.flashSet(static_cast<const uint8_t*>(pendingFlash.getData()), (uint32_t) pendingFlash.getSize());
+    const auto& bank = Core::bankFile();     // (every break, HD: the FM-1's eight compressed ones without it)
+    core.bank(static_cast<const uint8_t*>(bank.getData()), (uint32_t) bank.getSize());
     core.init(5000);                     // the start screen run through silently (5 s of the core's time)
     core.master(1023);
+    nBreaks = core.breaks();
     core.sync(1);
     coreFrames = 0;
     coreMsDone = 0;
@@ -293,7 +296,7 @@ juce::String LoafBreakerProcessor::status() const
 {
     if (error.isNotEmpty())
         return error;
-    return playingNow.load() ? "PLAYING" : "STOPPED";
+    return juce::String(playingNow.load() ? "PLAYING" : "STOPPED") + " · " + juce::String(nBreaks.load()) + " BREAKS";
 }
 
 // the project's state: the firmware's saved objects (SAVE done first), deflated; the plugin's parameters

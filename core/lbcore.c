@@ -1,7 +1,11 @@
 /* LOAF BREAKER VST: the firmware's core (fm1-base's host/rfm1.c: the host simulator as a library, compiled natively
  * here, with the whole app: plat_host.c, app.c and its pages) and the C API of lbcore.h over its panel. */
+#include <stdint.h>
+const uint8_t *lb_bank_ptr;              /* (LB_BIG: the break bank the plugin loads, breaks.bank; app.c reads it) */
+uint32_t lb_bank_len;
 #include "rfm1.c"
 #include "lbcore.h"
+void lb_bank(const uint8_t *p, uint32_t n) { lb_bank_ptr = n >= 16u ? p : 0; lb_bank_len = n; }
 int lb_abi(void) { return LB_ABI; }
 static uint32_t lb_now;
 void lb_ms(int frame)
@@ -17,7 +21,7 @@ void lb_ms(int frame)
 }
 void lb_init(uint32_t ms)
 {
-    static int16_t sink[2 * 64];
+    static float sink[2 * 64];
     uint32_t i, due = 0, done = 0;
     rf_init(0);
     for (i = 0; i < ms; i++) {           /* the start screen, silently, the audio drawn as it falls due */
@@ -25,19 +29,29 @@ void lb_init(uint32_t ms)
         due = (uint32_t)((uint64_t)(i + 1u) * 44100u / 1000u);
         while (done < due) {
             uint32_t n = due - done > 64u ? 64u : due - done;
-            rf_audio(sink, n);
+            lb_audio(sink, n);
             done += n;
         }
     }
 }
+/* the render's own 24-bit blocks (sim_render, APP_BLOCK frames), to float: no 16-bit step (rf_audio's) on the PC */
+static int32_t lb_blk[2 * APP_BLOCK];
+static uint32_t lb_blk_at = APP_BLOCK;
 void lb_audio(float *lr, uint32_t frames)
 {
-    static int16_t b[2 * 256];
     while (frames) {
-        uint32_t n = frames > 256u ? 256u : frames, k;
-        rf_audio(b, n);
+        uint32_t n, k;
+        if (lb_blk_at >= APP_BLOCK) {
+            if (rf_booted && !rf_halted)
+                sim_render(lb_blk);
+            else
+                memset(lb_blk, 0, sizeof lb_blk);
+            lb_blk_at = 0;
+        }
+        n = APP_BLOCK - lb_blk_at < frames ? APP_BLOCK - lb_blk_at : frames;
         for (k = 0; k < 2u * n; k++)
-            lr[k] = (float)b[k] * (1.0f / 32768.0f);
+            lr[k] = (float)lb_blk[2u * lb_blk_at + k] * (1.0f / 8388608.0f);
+        lb_blk_at += n;
         lr += 2u * n;
         frames -= n;
     }
@@ -103,6 +117,21 @@ uint32_t lb_flash_get(uint8_t *out, uint32_t n)
     return n;
 }
 int lb_flash_set(const uint8_t *in, uint32_t n) { return rf_flash_stage(in, n); }
+int lb_breaks(void) { return (int)n_breaks; }   /* breaks in all (the bank's, the player's) */
 void lb_save(void) { store_all(); }   /* the FM-1's SAVE, without its screen: into the flash image */
 void lb_sync(int on) { set.clk_in = (uint8_t)(on != 0); }   /* follow the MIDI clock in (the host's) */
 LB_API uint32_t lb_debug(void) { return (uint32_t)set.tut | (uint32_t)set.novice << 8 | (uint32_t)ui.page << 16 | (uint32_t)(ui.lobo_t != 0) << 24; }
+/* a few of the firmware's values, for the tests and the window: 0 the break playing, 1 the breaks, 2 the per-break data
+ * saved (bytes), 3 the break's length (samples), 4 its rate */
+LB_API int lb_get(int what)
+{
+    const brk_break_t *b = brk_get_break();
+    switch (what) {
+    case 0: return set.brk;
+    case 1: return (int)n_breaks;
+    case 2: return kx2_size();
+    case 3: return b ? (int)b->len : 0;
+    case 4: return b ? (int)b->rate : 0;
+    }
+    return -1;
+}

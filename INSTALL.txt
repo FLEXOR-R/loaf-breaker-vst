@@ -7,9 +7,15 @@ INSTALLER LE VST3 (Ableton, FL Studio...)
 3. LOAF BREAKER apparait dans Plug-ins > VST3 > FLEXOR. Glisse-le sur une piste MIDI.
 
 LA VERSION AUTONOME (sans Ableton)
-Ouvre "Standalone\LOAF BREAKER.exe" (garde lbcore.dll a cote). Windows peut afficher un avertissement
+Ouvre "Standalone\LOAF BREAKER.exe" (garde lbcore.dll et breaks.bank a cote). Windows peut afficher un avertissement
 ("Windows a protege votre ordinateur") : Informations complementaires > Executer quand meme. Le programme
 n'est pas signe, c'est normal pour une version de test.
+
+CE QUE LA VERSION PC A EN PLUS DU FM-1
+- Les 98 breaks de la bibliotheque (le FM-1 en a 8), en qualite CD : 44,1 kHz, 16 bits, sans compression
+  (le FM-1 : 22 kHz compresses). ALGORITHM les parcourt du plus lent au plus rapide.
+- Les touches blanches et le split gardes pour chacun des 98 breaks.
+- Le delai DUB jusqu'a 2 secondes (toutes les valeurs a tous les tempos) ; une sortie 24 bits.
 
 DANS ABLETON
 - LOAF BREAKER suit le tempo d'Ableton et demarre a la mesure suivante quand tu lances la lecture

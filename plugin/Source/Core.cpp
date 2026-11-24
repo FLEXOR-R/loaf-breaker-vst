@@ -1,4 +1,5 @@
 #include "Core.h"
+#include <mutex>
 
 static juce::String libName()
 {
@@ -23,6 +24,21 @@ static juce::File findLibrary()
 }
 
 Core::~Core() { unload(); }
+
+const juce::MemoryBlock& Core::bankFile()
+{
+    static juce::MemoryBlock data;
+    static std::once_flag once;
+    std::call_once(once, [] {
+        auto lib = findLibrary();
+        for (auto dir : { lib.getParentDirectory(), lib.getParentDirectory().getParentDirectory().getChildFile("Resources") })
+            if (dir.getChildFile("breaks.bank").existsAsFile()) {
+                dir.getChildFile("breaks.bank").loadFileAsData(data);
+                break;
+            }
+    });
+    return data;
+}
 
 void Core::unload()
 {
@@ -64,9 +80,10 @@ bool Core::load(juce::String& error)
     LB_FN(midiIn, "lb_midi_in") LB_FN(midiOut, "lb_midi_out") LB_FN(button, "lb_button") LB_FN(key, "lb_key")
     LB_FN(turn, "lb_turn") LB_FN(master, "lb_master") LB_FN(screen, "lb_screen") LB_FN(leds, "lb_leds")
     LB_FN(playing, "lb_playing") LB_FN(flashSize, "lb_flash_size") LB_FN(flashGet, "lb_flash_get")
-    LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync")
+    LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync") LB_FN(bank, "lb_bank")
+    LB_FN(breaks, "lb_breaks")
 #undef LB_FN
-    if (abi() != 1) {
+    if (abi() != 2) {
         error = "LOAF BREAKER: the core's version does not match the plugin's";
         unload();
         return false;

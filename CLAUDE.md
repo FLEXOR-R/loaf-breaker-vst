@@ -9,6 +9,14 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   natively + the C API of `lbcore.h`); `build_core.sh OUT [CC]` (liblbcore.so; lbcore.dll with x86_64-w64-mingw32-gcc:
   depends on KERNEL32 and msvcrt only). Needs the firmware's generated headers: `(cd firmware && ./build.sh --host)`.
   The first start's mode question is answered EXPERT (lb_ms); the start screen run silently by lb_init(5000).
+- LB_BIG (24 Nov 2026, FLEXOR: "casser tout ce qui limite techniquement la version fm1 ... tout ce qui est une limite
+  sur fm1 et pas sur pc doit être optimisé"): the core is built with -DLB_BIG=1, the firmware's switch for the PC
+  (app.c, app.h; the FM-1 never has it, its image unchanged): the break bank a file (`core/build_bank.sh`:
+  breaks.bank, every break of breaks.txt at 44.1 kHz 16-bit PCM, up to 128 of 23 s; lb_bank before lb_init; the
+  plugin's Core::bankFile, VST3 Contents/Resources), WK_NB 128 (each break's white keys and split; kx2 over four store
+  objects), the dub line 2 s, the output 24-bit (lb_audio from sim_render). Next limits to lift (the plan): patterns
+  all in RAM (no SAVE OR STOP), more kicks, a bigger drum kit, longer breaks and more bars, the player's breaks by
+  drag and drop, then the PC interface.
 - `plugin/`: JUCE 9.0.6 (FetchContent, or -DJUCE_DIR=), VST3 + Standalone (AU on a Mac). `Core.cpp` loads a COPY of
   the core library per instance (a temporary file: the firmware's state is global, so each instance has its own;
   setStateInformation reboots a fresh copy). The audio thread runs the core: 44.1 kHz, a core millisecond each 44.1

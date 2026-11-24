@@ -32,6 +32,10 @@ public:
     int (*flashSet)(const uint8_t* in, uint32_t n) = nullptr;
     void (*save)() = nullptr;
     void (*sync)(int on) = nullptr;
+    void (*bank)(const uint8_t* p, uint32_t n) = nullptr;
+    int (*breaks)() = nullptr;
+    // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance
+    static const juce::MemoryBlock& bankFile();
 
 private:
     std::unique_ptr<juce::DynamicLibrary> lib;

@@ -35,10 +35,14 @@ jobs:
           mkdir -p build
           core/build_core.sh build/liblbcore.so
           core/build_core.sh build/lbcore.dll x86_64-w64-mingw32-gcc
+      - name: The break bank (every break, 44.1 kHz 16-bit)
+        run: core/build_bank.sh build/breaks.bank
       - uses: actions/upload-artifact@v4
         with:
           name: core
-          path: build/lbcore.dll
+          path: |
+            build/lbcore.dll
+            build/breaks.bank
       - name: The plugin on Linux, and its checks (as a DAW loads it; pluginval)
         run: |
           sudo apt-get install -y -qq libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev \
@@ -48,6 +52,8 @@ jobs:
           cmake --build build/cmake --target LoafBreaker_VST3 lbtest -j4
           A=build/cmake/LoafBreaker_artefacts/Release
           cp build/liblbcore.so "$A/VST3/LOAF BREAKER.vst3/Contents/x86_64-linux/"
+          mkdir -p "$A/VST3/LOAF BREAKER.vst3/Contents/Resources"
+          cp build/breaks.bank "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
           xvfb-run -a build/cmake/lbtest_artefacts/Release/lbtest "$PWD/$A/VST3/LOAF BREAKER.vst3" linux.wav
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
           unzip -q pv.zip && chmod +x pluginval
@@ -71,7 +77,9 @@ jobs:
         run: |
           A="build/cmake/LoafBreaker_artefacts/Release"
           cp build/lbcore.dll "$A/VST3/LOAF BREAKER.vst3/Contents/x86_64-win/"
-          cp build/lbcore.dll "$A/Standalone/"
+          mkdir -p "$A/VST3/LOAF BREAKER.vst3/Contents/Resources"
+          cp build/breaks.bank "$A/VST3/LOAF BREAKER.vst3/Contents/Resources/"
+          cp build/lbcore.dll build/breaks.bank "$A/Standalone/"
           "build/cmake/lbtest_artefacts/Release/lbtest.exe" "$PWD/$A/VST3/LOAF BREAKER.vst3" windows.wav
           curl -sSL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
           unzip -q pv.zip
@@ -93,7 +101,7 @@ jobs:
           P="LOAF-BREAKER-VST-$VERSION-Windows"
           mkdir -p "pkg/$P/VST3" "pkg/$P/Standalone"
           cp -r "$A/VST3/LOAF BREAKER.vst3" "pkg/$P/VST3/"
-          cp "$A/Standalone/LOAF BREAKER.exe" "$A/Standalone/lbcore.dll" "pkg/$P/Standalone/"
+          cp "$A/Standalone/LOAF BREAKER.exe" "$A/Standalone/lbcore.dll" "$A/Standalone/breaks.bank" "pkg/$P/Standalone/"
           cp INSTALL.txt "pkg/$P/LISEZ-MOI.txt"
           cd pkg && 7z a -bd "../$P.zip" "$P" > /dev/null
           echo "PKG=$P" >> "$GITHUB_ENV"
