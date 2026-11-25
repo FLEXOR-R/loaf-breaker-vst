@@ -156,7 +156,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   avec le FM-1 (settings fm1ctl, read by the processor at its start). `plugin/Source/Fm1Ctl.*`: the FM-1's own ports
   (each opened when free, looked for each second; closed while Fm1Link's backup runs), two lock-free FIFOs to the
   audio thread. The processor's `ctlServe` (processBlock and idlePump): CC 127 1 each second, the LEDs from lbcore
-  `lb_lights` (ABI 13: plat_lights' masks) as notes, changed ones each 15 ms and all each second; `ctlApply`: notes to
+  `lb_lights` (ABI 13: plat_lights' masks) as notes, changed ones every audio block and all every 5 s (and at once when the FM-1 comes in), Fm1Ctl's thread
+  woken by flush() (FLEXOR: "la latence très minimale"; Windows' short waits are ~16 ms); the header's toast and MENU
+  say the host's buffer (bufferMs: most of the delay); `ctlApply`: notes to
   lb_button / lb_key, CCs to lb_turn_hw (ABI 14: at once, SELECT the tempo as on the FM-1, FLEXOR: "SELECT change le
   tempo en mode contrôleur"; the VST's own tabs still never) / lb_master. Channel 16 from the DAW is the FM-1's while on (never notes for the
   core), applied only when its own port is not open (no doubles). Its state in the header (FM-1 ... / FM-1 *), its

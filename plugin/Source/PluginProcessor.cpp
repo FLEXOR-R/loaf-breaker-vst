@@ -111,6 +111,7 @@ void LoafBreakerProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     const juce::ScopedLock sl(lock);
     hostRate = sampleRate;
+    blockSize = samplesPerBlock;         // (the host's buffer: most of the delay a key from the FM-1 waits)
     const int maxCore = (int) std::ceil(samplesPerBlock * CORE_RATE / sampleRate) + 64;
     fifo.assign((size_t) (maxCore + 1024) * 2, 0.0f);
     tmpL.assign((size_t) maxCore + 1024, 0.0f);
@@ -286,12 +287,16 @@ void LoafBreakerProcessor::ctlServe()
     uint32_t msg;
     while (ctl.popIn(msg))
         ctlApply(msg);
+    bool pushed = false;
     if (! ctlWas || now - ctlKeepT >= 1000.0) {   // on, and every second: the FM-1 stays CONTROLLER (3 s without: off)
         ctlWas = true;
         ctlKeepT = now;
         ctl.pushOut(0xBF | 127u << 8 | 1u << 16);
+        pushed = true;
     }
     const bool alive = now - ctlAnswer < 2500.0;
+    if (alive && ctlState.load() != 2)   // (just come into CONTROLLER: it is dark, all its lights again)
+        ctlFullT = 0.0;
     ctlState = alive ? 2 : 1;
     if (! alive && (ctlKeys.load() | ctlBtns.load())) {   // (gone, unplugged: what it held let go)
         for (int k = 0; k < 27; ++k)
@@ -300,12 +305,10 @@ void LoafBreakerProcessor::ctlServe()
             if (ctlBtns.load() >> b & 1u) core.button(b, 0);
         ctlKeys = ctlBtns = 0;
     }
-    if (now - ctlLedT < 15.0)            // (the lights ~60 times a second, as the FM-1's frames)
-        return;
-    ctlLedT = now;
+    // the lights: every audio block (FLEXOR: "la latence très minimale"), the changed ones; all again every 5 s
     uint32_t o[6] {};
     core.lights(o);
-    const bool full = now - ctlFullT >= 1000.0;   // (all again each second: an FM-1 just come into CONTROLLER is dark)
+    const bool full = now - ctlFullT >= 5000.0;
     if (full)
         ctlFullT = now;
     for (int i = 0; i < 43; ++i) {
@@ -320,8 +323,11 @@ void LoafBreakerProcessor::ctlServe()
         if (lv != ctlSent[i] || full) {
             ctlSent[i] = lv;
             ctl.pushOut(lv ? (0x9Fu | (uint32_t) i << 8 | (uint32_t) lv << 16) : (0x8Fu | (uint32_t) i << 8));
+            pushed = true;
         }
     }
+    if (pushed)
+        ctl.flush();
 }
 
 // the host's transport, as LOAF BREAKER's MIDI clock in: started at the host's next bar (4/4), 24 ticks a beat, stopped

@@ -98,6 +98,6 @@ void Fm1Ctl::run()
                 out->sendMessageNow(juce::MidiMessage((int) (v & 0xFF), (int) (v >> 8 & 0x7F), (int) (v >> 16 & 0x7F)));
             }
         }
-        wait(2);
+        wait(20);                        // (woken by flush() as soon as there is something to send)
     }
 }

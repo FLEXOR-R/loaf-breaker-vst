@@ -2924,7 +2924,9 @@ void LoafBreakerEditor::timerCallback()
     {                                    // the FM-1 as the controller: its state said, its hands on the pads
         const int cs = proc.controllerState();
         if (cs != ctlShown) {
-            if (cs == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : CONNECT\xc3\x89"));
+            if (cs == 2) toast(proc.bufferMs() > 6.0
+                                   ? "FM-1 CONNECTE - TAMPON AUDIO " + juce::String(proc.bufferSize()) + " (" + juce::String(proc.bufferMs(), 1) + " MS) : BAISSE-LE POUR MOINS DE LATENCE"
+                                   : juce::String(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : CONNECT\xc3\x89")));
             else if (cs == 1 && ctlShown == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : PERDU (D\xc3\x89" "BRANCH\xc3\x89 ?)"));
             else if (cs == 1) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : EN ATTENTE DU FM-1"));
             ctlShown = cs;
@@ -3378,6 +3380,8 @@ void LoafBreakerEditor::menu()
     skins.addItem(98, "Regler PERSO (couleur par couleur)...");
     juce::PopupMenu fm1;
     fm1.addItem(206, juce::CharPointer_UTF8("Jouer le VST avec le FM-1 (contr\xc3\xb4leur, USB)"), true, proc.controller());
+    fm1.addItem(207, "   Tampon audio : " + juce::String(proc.bufferSize()) + " echantillons, " + juce::String(proc.bufferMs(), 1)
+                         + " ms" + (proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone ? "  (Options > Audio : Windows Audio Low Latency ou Exclusive, 128)" : "  (reglages audio du DAW)"), false);
     fm1.addSeparator();
     fm1.addItem(205, "GESTION: kicks, patterns, tracks, bibliotheque...");
     fm1.addSeparator();

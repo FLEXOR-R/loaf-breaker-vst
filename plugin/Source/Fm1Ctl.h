@@ -23,6 +23,7 @@ public:
     // the audio thread
     bool popIn(uint32_t& msg);            // a channel-16 message from the FM-1's own port: status | d1 << 8 | d2 << 16
     void pushOut(uint32_t msg);           // one to the FM-1 (dropped when its port is not open)
+    void flush() { notify(); }            // (the messages pushed, sent now: Windows' sleeps are ~16 ms, a wait is not)
     std::atomic<bool> inOpen { false }, outOpen { false };
 
 private:

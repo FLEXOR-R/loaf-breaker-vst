@@ -103,6 +103,8 @@ public:
     int controllerState() const { return ctlState.load(); }
     uint32_t fm1Keys() const { return ctlKeys.load(); }
     uint32_t fm1Buttons() const { return ctlBtns.load(); }
+    double bufferMs() const { return blockSize.load() * 1000.0 / juce::jmax(8000.0, hostRate); }   // (the host's buffer, ms)
+    int bufferSize() const { return blockSize.load(); }
 
 private:
     bool boot();                         // the core loaded and booted (with the saved image, if any)
@@ -198,6 +200,7 @@ private:
     // the controller (the audio thread's, but the atomics)
     Fm1Ctl ctl;
     std::atomic<bool> ctlWant { false };
+    std::atomic<int> blockSize { 512 };
     std::atomic<int> ctlState { 0 };
     std::atomic<uint32_t> ctlKeys { 0 }, ctlBtns { 0 };
     double ctlAnswer = 0.0, ctlKeepT = 0.0, ctlLedT = 0.0, ctlFullT = 0.0;

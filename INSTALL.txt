@@ -80,7 +80,11 @@ JOUER LE VST AVEC LE FM-1 (MENU > Machine FM-1 > Jouer le VST avec le FM-1)
   les pads du VST). Le FM-1 se tait pendant ce temps, son ecran dit CONTROLLER.
 - Tout marche comme sur la machine : PLAY, SEL (tenu ou double appui), les combinaisons, les pages et leurs
   onglets, et SELECT change le tempo comme sur le FM-1 (dans la VST elle-meme, SELECT ne le change jamais).
-- Il faut LOAF BREAKER 0.9.79 ou plus sur le FM-1. En haut a droite, "FM-1 ..." = en attente, "FM-1 *" = connecte.
+- Il faut LOAF BREAKER 0.9.79 ou plus sur le FM-1.
+- La latence vient surtout du tampon audio du PC : MENU > Machine FM-1 l'affiche. Dans la version autonome :
+  Options > Audio, type "Windows Audio (Low Latency Mode)" ou "(Exclusive Mode)", tampon 128 (ou 64) ; dans
+  Ableton : Preferences > Audio, Buffer Size 128 avec un pilote ASIO. Pendant la lecture, une touche blanche part au
+  prochain point de la grille (SNAP), comme sur le FM-1. En haut a droite, "FM-1 ..." = en attente, "FM-1 *" = connecte.
 - Debranche le FM-1 ou decoche l'option : il redevient lui-meme en 3 secondes, ses reglages intacts.
 - L'option est gardee : le VST reprend la main sur le FM-1 a chaque ouverture tant qu'elle est cochee.
 - Dans Ableton (Windows) : le plus simple est de laisser le FM-1 desactive dans Preferences > Link/Tempo/MIDI
