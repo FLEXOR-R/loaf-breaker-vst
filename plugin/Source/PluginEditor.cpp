@@ -2695,7 +2695,7 @@ void LoafBreakerEditor::timerCallback()
         const int cs = proc.controllerState();
         if (cs != ctlShown) {
             if (cs == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : CONNECT\xc3\x89"));
-            else if (cs == 1 && ctlShown == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : PERDU (D\xc3\x89BRANCH\xc3\x89 ?)"));
+            else if (cs == 1 && ctlShown == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : PERDU (D\xc3\x89" "BRANCH\xc3\x89 ?)"));
             else if (cs == 1) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : EN ATTENTE DU FM-1"));
             ctlShown = cs;
             root->header.repaint();
