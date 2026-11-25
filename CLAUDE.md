@@ -140,7 +140,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   from getWidth / getHeight: wider, the pictures and cards; taller, the menus, the sequencer, the arranger); a DAW's
   full screen takes the screen's area. Faders that stuck while dragged (FLEXOR: "des faders restent bloqués après
   avoir un peu bougé"): the cards laid out again under the hand lost it (dragP nulled); MenuContent keeps `dragKey` and
-  finds it again after a rebuild.
+  finds it again after a rebuild. The header's window button (left of MENU; FLEXOR: "un bouton de fenêtre cliquable ...
+  plein écran avec bordure"): screenMode 3, the window maximised with its bar (DocumentWindow::setFullScreen; in a DAW,
+  the screen's area), again: back; MENU › Affichage › Agrandir too; ESC back.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

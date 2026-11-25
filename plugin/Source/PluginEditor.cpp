@@ -31,7 +31,24 @@ struct PixButton : Part
     std::function<void(bool)> act;      // down / up
     bool on = false, down = false;
     float th = 13.0f;
-    void paint(juce::Graphics& g) override { ui::button(g, getLocalBounds().toFloat(), text, on || down, isMouseOver(), th); }
+    int icon = 0;                        // (1: the window's maximise / restore square)
+    void paint(juce::Graphics& g) override
+    {
+        ui::button(g, getLocalBounds().toFloat(), text, on || down, isMouseOver(), th);
+        if (icon == 1) {
+            const auto& sk = s();
+            auto r = getLocalBounds().toFloat().withSizeKeepingCentre(16.0f, 14.0f);
+            g.setColour(down ? sk.bg : isMouseOver() ? sk.hot : sk.ink);
+            if (ed.screen == 3) {        // (maximised: two squares, the window to put back)
+                g.drawRect(r.translated(3.0f, -3.0f).withSizeKeepingCentre(12.0f, 10.0f), 1.5f);
+                g.fillRect(r.translated(-2.0f, 2.0f).withSizeKeepingCentre(12.0f, 10.0f).withHeight(3.0f));
+                g.drawRect(r.translated(-2.0f, 2.0f).withSizeKeepingCentre(12.0f, 10.0f), 1.5f);
+            } else {
+                g.drawRect(r, 1.5f);
+                g.fillRect(r.withHeight(3.5f));
+            }
+        }
+    }
     void mouseDown(const juce::MouseEvent&) override { down = true; repaint(); if (act) act(true); }
     void mouseUp(const juce::MouseEvent&) override { down = false; repaint(); if (act) act(false); }
     void mouseEnter(const juce::MouseEvent&) override { repaint(); }
@@ -48,6 +65,10 @@ struct Header : Part
         addAndMakeVisible(*play);
         menu = std::make_unique<PixButton>(e, "MENU", [&e](bool d) { if (d) e.menu(); });
         addAndMakeVisible(*menu);
+        // (FLEXOR: "un bouton de fenêtre cliquable pour mettre en plein écran avec bordure"): the window maximised, or back
+        maxi = std::make_unique<PixButton>(e, "", [&e](bool d) { if (d) e.screenMode(e.screen == 3 ? 0 : 3); });
+        maxi->icon = 1;
+        addAndMakeVisible(*maxi);
         sync = std::make_unique<PixButton>(e, "SYNC", [&e](bool d) {
             if (! d) return;
             auto* p = e.proc.params.getParameter("sync");
@@ -55,7 +76,7 @@ struct Header : Part
         });
         addAndMakeVisible(*sync);
     }
-    std::unique_ptr<PixButton> play, menu, sync;
+    std::unique_ptr<PixButton> play, menu, sync, maxi;
     float vl = 0, vr = 0, hl = 0, hr = 0, tdrag = 0.0f;
     bool tempoHover = false, tempoDrag = false;
     // the tempo: dragged up / down or the wheel, 1 BPM a step (SELECT never touches it in the VST)
@@ -102,6 +123,7 @@ struct Header : Part
         play->setBounds(380, 18, 110, 48);
         sync->setBounds(640, 46, 70, 20);
         menu->setBounds(getWidth() - 96, 22, 80, 40);
+        maxi->setBounds(getWidth() - 146, 22, 42, 40);
     }
     void paint(juce::Graphics& g) override
     {
@@ -3006,7 +3028,12 @@ void LoafBreakerEditor::screenMode(int mode)
         nativeBar = dw->isUsingNativeTitleBar();
     }
     if (desk.getKioskModeComponent() != nullptr) desk.setKioskModeComponent(nullptr, false);
-    if (mode == 1) {
+    if (screen == 3 && mode != 3) dw->setFullScreen(false);
+    if (mode == 3) {                         // (FLEXOR: "plein écran avec bordure": the window maximised, its bar kept)
+        dw->setUsingNativeTitleBar(nativeBar);
+        dw->setTitleBarHeight(titleH > 0 ? titleH : 26);
+        dw->setFullScreen(true);
+    } else if (mode == 1) {
         dw->setUsingNativeTitleBar(false);
         dw->setTitleBarHeight(0);
         desk.setKioskModeComponent(dw, false);
@@ -3020,7 +3047,7 @@ void LoafBreakerEditor::screenMode(int mode)
         if (! windowBounds.isEmpty()) dw->setBounds(windowBounds);
     }
     screen = mode;
-    toast(mode == 1 ? "PLEIN ECRAN (ECHAP: REVENIR)" : mode == 2 ? "PLEIN ECRAN SANS BORDURE (ECHAP: REVENIR)" : "FENETRE");
+    toast(mode == 1 ? "PLEIN ECRAN (ECHAP: REVENIR)" : mode == 2 ? "PLEIN ECRAN SANS BORDURE (ECHAP: REVENIR)" : mode == 3 ? "AGRANDI, AVEC SA BORDURE" : "FENETRE");
     grabKeyboardFocus();
 }
 
@@ -3117,6 +3144,7 @@ void LoafBreakerEditor::menu()
         const bool standalone = proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
         juce::PopupMenu sm;
         if (standalone) {
+            sm.addItem(53 + 100, "Agrandir, avec bordure  (le bouton en haut)", true, screen == 3);
             sm.addItem(51, "Plein ecran  (F11)", true, screen == 1);
             sm.addItem(52, "Plein ecran sans bordure  (SHIFT+F11)", true, screen == 2);
         } else
@@ -3136,6 +3164,7 @@ void LoafBreakerEditor::menu()
         if (r == 2) { self->toggleMachine(); return; }
         if (r == 3) { self->openManager(); return; }
         if (r >= 50 && r <= 52) { self->screenMode(r - 50); return; }
+        if (r == 153) { self->screenMode(3); return; }
         if (r == 53 || r == 54) { self->machineSeparate(r == 54); return; }
         if (r == 205) { self->openManager(); return; }
         auto& p = self->proc;
