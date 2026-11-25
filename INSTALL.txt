@@ -29,6 +29,12 @@ LE CLAVIER (tout se change dans MENU > Clavier, ou CTRL+K)
 - Dans les menus : HAUT / BAS choisissent un reglage (un cadre le montre), GAUCHE / DROITE changent sa valeur
   (SHIFT : un grand pas), ENTREE ouvre sa liste.
 
+LE MORCEAU (SONG > TRACKS)
+- Les 8 tracks sur une ligne de temps : chaque element est un bloc aussi long qu'il joue. Glisser un bloc : le
+  deplacer. Molette : ses boucles. Double-clic : son pattern. + : ajouter un pattern, un DROP ou un trou. > : jouer la
+  track. LOOP / STOP / HOLD : ce qu'elle fait a la fin. Dessous : le pattern, les boucles, le break, le kick de
+  l'element choisi, le deplacer, le dupliquer, le supprimer.
+
 LES BREAKS
 - Clic sur le nom du break (en haut) : tous les breaks, par categorie comme sur le site (FLEXOR, CYBERWORM AMENS,
   HUGE AMEN PACK, CLASSICS, et MES BREAKS) ; la playlist ; ajouter le break a la playlist.

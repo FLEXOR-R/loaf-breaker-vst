@@ -33,7 +33,7 @@ public:
     void setStateInformation(const void*, int) override;
 
     // the editor's side: commands queued for the audio thread, the screen and LEDs read back
-    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet, CmdBreak };
+    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet, CmdBreak, CmdTrack };
     void send(Cmd c, int a, int b);
     void step(int op, int a, int b, int c, int d);   // a sequencer edit (lb_step)
     // the page as menus (lb_scan, lb_options, lb_set): every part of the tab shown, each setting's values
@@ -78,6 +78,11 @@ public:
     void breakStep(int dir);                     // the playlist's next / previous (none: every break, in order)
     juce::StringArray playlist();
     void setPlaylist(const juce::StringArray& names);
+    // the song (the arranger): the 8 tracks, read on the audio thread while wanted; one written whole; played
+    std::atomic<bool> tracksWanted { false };
+    bool tracksIfNew(uint32_t& serial, std::vector<lb_track_t>& out);
+    void trackWrite(const lb_track_t& t);
+    void trackPlay(int op, int t) { send(CmdTrack, op, t); }
     // the kicks as blobs (the library: FLEXOR, "importer des kicks de la machine, les nommer et les ranger")
     juce::MemoryBlock kickRead(const juce::MemoryBlock* fm1, int k);     // empty: none (fm1 nullptr: the VST's)
     void kickHear(const juce::MemoryBlock& blob);                        // rendered alone, played over the output
@@ -133,6 +138,11 @@ private:
     uint8_t patsBuf[64 * 40] {};
     uint32_t patsSerial = 0, patsAge = 0;
     bool patsWanted = true;
+    lb_track_t tracksBuf[8] {};
+    uint32_t tracksSerial = 0, tracksAge = 0;
+    juce::SpinLock trackLock;
+    lb_track_t trackOut {};
+    bool trackPending = false;
     // the menus' service (on the audio thread, never waiting: try-locks)
     lb_part_t partsBuf[MAX_PARTS] {};
     int nParts = 0;

@@ -96,6 +96,10 @@ void LoafBreakerProcessor::step(int op, int a, int b, int c, int d)
 
 void LoafBreakerProcessor::drainCommands()
 {
+    {                                    // (a track written whole, from the arranger)
+        const juce::SpinLock::ScopedTryLockType tl(trackLock);
+        if (tl.isLocked() && trackPending) { core.trackWrite(&trackOut); trackPending = false; tracksAge = 99; }
+    }
     const auto scope = cmdFifo.read(cmdFifo.getNumReady());
     auto run = [this](const CmdItem& it) {
         if (it.cmd == CmdButton) core.button(it.a, it.b);
@@ -105,6 +109,7 @@ void LoafBreakerProcessor::drainCommands()
         else if (it.cmd == CmdStep) { core.step(it.a, it.b, (uint8_t) it.c, it.d, it.e); patsWanted = true; }
         else if (it.cmd == CmdSet) { core.set(it.a, it.c, it.b); partsWanted = true; }
         else if (it.cmd == CmdBreak) core.breakGo(it.b);
+        else if (it.cmd == CmdTrack) { core.trackPlay(it.a, it.b); tracksAge = 99; }
     };
     for (int i = 0; i < scope.blockSize1; ++i) run(cmdBuf[scope.startIndex1 + i]);
     for (int i = 0; i < scope.blockSize2; ++i) run(cmdBuf[scope.startIndex2 + i]);
@@ -142,6 +147,11 @@ void LoafBreakerProcessor::coreMs()
                     lastPat = seqBuf.pat;
                 }
                 serveMenus();
+                if (tracksWanted && ++tracksAge >= 4) {   // (the arranger shown: the tracks 7 times a second)
+                    for (int t = 0; t < 8; ++t) core.track(t, &tracksBuf[t]);
+                    tracksSerial++;
+                    tracksAge = 0;
+                }
                 const uint32_t ws = core.wave(nullptr, 0, nullptr, nullptr);
                 if (ws != coreWaveSerial) {   // another break: its waveform, once
                     float sl[32];
@@ -420,6 +430,22 @@ bool LoafBreakerProcessor::takeOptions(int id, lb_opts_t& out)
     if (! r.ok) { out.n = 0; return true; }
     out = r.o;
     return true;
+}
+
+bool LoafBreakerProcessor::tracksIfNew(uint32_t& serial, std::vector<lb_track_t>& out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == tracksSerial) return false;
+    out.assign(tracksBuf, tracksBuf + 8);
+    serial = tracksSerial;
+    return true;
+}
+
+void LoafBreakerProcessor::trackWrite(const lb_track_t& t)
+{
+    const juce::SpinLock::ScopedLockType sl(trackLock);
+    trackOut = t;
+    trackPending = true;
 }
 
 bool LoafBreakerProcessor::seqIfNew(uint32_t& serial, lb_seq_t& out)

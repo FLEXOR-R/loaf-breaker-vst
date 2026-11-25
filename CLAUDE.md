@@ -95,6 +95,12 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   1 the grid, 2 the menus; settings "keys2"); Nav (F1-F8 domains, TAB tabs, CTRL+S/Z/C/V/B/P/G/K, F9), Seq (the grid's
   cursor, ENTER, DEL, ALT/SHIFT/CTRL+arrows its values, [ ] rotate: SeqPanel::command), Menu (MenuContent::command:
   a focus frame, LEFT/RIGHT the value).
+  The arranger (FLEXOR: "penser la VST comme un mini DAW"): SONG › TRACKS shows SongPanel above the menus: the 8 tracks
+  on a timeline, each item a block as long as it plays (loops x the pattern's bars; a drop its build), drag to move,
+  wheel its loops, double click its pattern, + to add (a pattern, DROP, GAP), > plays the track, its END (LOOP STOP
+  HOLD), the item's inspector (pattern, loops, break, kick, << >>, duplicate, delete). lbcore lb_track / lb_track_write
+  (the firmware's edx_track / edx_track_write: each item checked) / lb_track_play; the processor reads the tracks on the
+  audio thread while shown (tracksWanted) and writes one through a mailbox (trackLock).
   Next: a song arranger (the tracks' items), the kick's picture, a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.

@@ -34,7 +34,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 10
+#define LB_ABI 11
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -59,7 +59,19 @@ LB_API int lb_flash_set(const uint8_t *in, uint32_t n);   /* before lb_init */
 LB_API void lb_bank(const uint8_t *p, uint32_t n);   /* the break bank (breaks.bank), before lb_init; kept alive by the caller */
 LB_API int lb_breaks(void);
 LB_API int lb_break_name(int i, char *out, int cap);   /* break i's name (1), 0 none */
-LB_API void lb_break_go(int i);                       /* break i, as ALGORITHM asks for one */
+LB_API void lb_break_go(int i);
+/* the song: a track (0..7) read whole, written whole (each item checked), played / stopped / picked. it[]: 0 the end,
+ * 1..64 that pattern, 0xFE a drop, 0xFD a gap; rep its loops (1..16); tb a pattern item's break (0 the one playing,
+ * else break + 1; a drop's: bit 0 stutter, 1-2 gap keeps, 3-6 its DROP n); tk its kick (0 the one playing, else KICK n) */
+typedef struct {
+    int track, cur, on, pos, end, from;  /* this one; the track picked; playing; the item playing; at its end 0 LOOP
+                                          * 1 STOP 2 HOLD; the item it starts from */
+    uint8_t it[32], rep[32], tb[32], tk[32];
+    int patbars, dropbars;               /* a pattern's loop in bars; a drop's build */
+} lb_track_t;
+LB_API void lb_track(int t, lb_track_t *o);
+LB_API void lb_track_write(const lb_track_t *t);
+LB_API void lb_track_play(int op, int t);                       /* break i, as ALGORITHM asks for one */
 LB_API int lb_get(int what);                     /* 0 break, 1 breaks, 2 per-break bytes saved, 3 length, 4 rate */                      /* how many breaks there are */
 LB_API void lb_model(lb_model_t *m);
 /* the break playing: its waveform in n columns (peak 0..1, then low / mid / high energy 0..1, 4 floats a column), its

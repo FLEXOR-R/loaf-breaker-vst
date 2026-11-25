@@ -72,6 +72,16 @@ int main(void)
         lb_model(&b);
         check(!strcmp(a.dom, b.dom) && !memcmp(a.kval, b.kval, sizeof a.kval), "the VST as it was after hearing it");
     }
+    {                                    /* the song: a track read, an item added, read back */
+        lb_track_t t0, t1;
+        int n = 0;
+        lb_track(1, &t0);
+        t0.it[0] = 5, t0.rep[0] = 3, t0.it[1] = 0;
+        lb_track_write(&t0);
+        lb_track(1, &t1);
+        while (n < 32 && t1.it[n]) n++;
+        check(n == 1 && t1.it[0] == 5 && t1.rep[0] == 3, "a track written and read back");
+    }
     printf("%s\n", bad ? "FAILED" : "OK");
     return bad != 0;
 }

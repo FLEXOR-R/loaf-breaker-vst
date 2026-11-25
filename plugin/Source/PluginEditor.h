@@ -56,13 +56,14 @@ public:
     lb_seq_t seq {};
     uint8_t pats[64 * 40] {};
     bool seqView() const;                        // PATTERN, its grid (not GROOVE)
+    bool songView() const;                       // SONG › TRACKS: the arranger
 
     struct Root;
     std::unique_ptr<Root> root;
 
 private:
     void timerCallback() override;
-    uint32_t modelSerial = 0, waveSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0;
+    uint32_t modelSerial = 0, waveSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0, tracksSerial = 0;
     juce::String lastDom;
     std::unique_ptr<lb_opts_t> optBuf { new lb_opts_t() };
     std::set<int> heldKeys;

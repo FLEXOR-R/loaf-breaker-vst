@@ -1279,6 +1279,280 @@ struct SeqPanel : Part
     }
 };
 
+
+// ------------------------------------------------------------------------------------------------ the arranger ---
+// (FLEXOR: "penser la VST comme un mini DAW"): SONG's 8 tracks on a timeline, each item a block as long as it plays
+// (a pattern's loops, a drop's build), dragged to its place, + to add, its pattern, loops, break and kick below; the
+// track played from here. Written whole through the firmware's own check (lbcore lb_track_write)
+struct SongPanel : Part
+{
+    explicit SongPanel(LBE& e) : Part(e) {}
+    std::vector<lb_track_t> tr;
+    int selT = 0, selI = -1, dragI = -1, dragT = -1, hover = -1;
+    float dragX = 0.0f, downX = 0.0f;
+    static constexpr float HEAD = 170.0f, LANE_H = 34.0f, TOP = 28.0f;
+    juce::Rectangle<float> lane(int t) const { return { 8.0f, TOP + t * (LANE_H + 4.0f), (float) getWidth() - 16.0f, LANE_H }; }
+    juce::Rectangle<float> inspector() const { const float y = TOP + 8 * (LANE_H + 4.0f) + 6.0f; return { 8.0f, y, (float) getWidth() - 16.0f, (float) getHeight() - y - 6.0f }; }
+    static int count(const lb_track_t& t) { int n = 0; while (n < 32 && t.it[n]) n++; return n; }
+    static int bars(const lb_track_t& t, int i) { return t.it[i] == 0xFE ? juce::jmax(1, t.dropbars) : juce::jmax(1, (int) t.rep[i]) * juce::jmax(1, t.patbars); }
+    float pxBar() const
+    {
+        int most = 32;
+        for (auto& t : tr) { int b = 0; for (int i = 0; i < count(t); ++i) b += bars(t, i); most = juce::jmax(most, b + 4); }
+        return ((float) getWidth() - 16.0f - HEAD - 40.0f) / (float) most;
+    }
+    juce::Rectangle<float> block(int t, int i) const
+    {
+        const auto l = lane(t);
+        float x = l.getX() + HEAD;
+        for (int k = 0; k < i; ++k) x += bars(tr[(size_t) t], k) * pxBar();
+        return { x + 1.0f, l.getY() + 2.0f, bars(tr[(size_t) t], i) * pxBar() - 2.0f, l.getHeight() - 4.0f };
+    }
+    juce::Rectangle<float> plus(int t) const
+    {
+        const int n = count(tr[(size_t) t]);
+        const float x = n ? block(t, n - 1).getRight() + 4.0f : lane(t).getX() + HEAD + 2.0f;
+        return { x, lane(t).getY() + 5.0f, 26.0f, LANE_H - 10.0f };
+    }
+    juce::Rectangle<float> playBtn(int t) const { return { lane(t).getX() + 96.0f, lane(t).getY() + 5.0f, 30.0f, LANE_H - 10.0f }; }
+    juce::Rectangle<float> endBtn(int t) const { return { lane(t).getX() + 130.0f, lane(t).getY() + 5.0f, 34.0f, LANE_H - 10.0f }; }
+    juce::String label(const lb_track_t& t, int i) const
+    {
+        const int v = t.it[i];
+        if (v == 0xFE) return "DROP " + juce::String((t.tb[i] >> 3 & 15) ? juce::String((t.tb[i] >> 3) & 15) : juce::String());
+        if (v == 0xFD) return "GAP";
+        return "P" + juce::String(v) + (t.rep[i] > 1 ? "  x" + juce::String(t.rep[i]) : juce::String());
+    }
+    void paint(juce::Graphics& g) override
+    {
+        const auto& sk = s();
+        ui::panel(g, getLocalBounds().toFloat().reduced(1.0f));
+        g.setColour(sk.dim);
+        g.setFont(ui::label(11.5f));
+        g.drawText("TRACKS  -  clic: choisir, glisser: deplacer, double-clic: le pattern, + : ajouter, > : jouer la track", 12, 4, 900, 20, juce::Justification::centredLeft);
+        if (tr.size() < 8) return;
+        const float pb = pxBar();
+        for (int t = 0; t < 8; ++t) {
+            const auto& k = tr[(size_t) t];
+            auto l = lane(t);
+            const bool cur = k.cur == t;
+            g.setColour(cur ? sk.panel2.brighter(0.06f) : sk.panel);
+            g.fillRect(l);
+            for (int b = 0; b * pb < l.getWidth() - HEAD; b += 4) {   // (the bars: every 4 a line)
+                g.setColour(sk.line.withAlpha(b % 16 ? 0.35f : 0.8f));
+                g.fillRect(l.getX() + HEAD + b * pb, l.getY(), 1.0f, l.getHeight());
+            }
+            g.setColour(cur ? sk.hot : sk.ink);
+            g.setFont(ui::labelBold(14.0f));
+            g.drawText("TRACK " + juce::String(t + 1), l.withWidth(92.0f).translated(8.0f, 0.0f), juce::Justification::centredLeft);
+            ui::button(g, playBtn(t), k.on && cur ? "[]" : ">", k.on && cur, false, 12.0f);
+            static const char* END[3] = { "LOOP", "STOP", "HOLD" };
+            ui::button(g, endBtn(t), END[juce::jlimit(0, 2, k.end)], false, false, 9.5f);
+            const int n = count(k);
+            for (int i = 0; i < n; ++i) {
+                if (t == dragT && i == dragI) continue;
+                drawBlock(g, t, i, block(t, i));
+            }
+            if (t == dragT && dragI >= 0) drawBlock(g, t, dragI, block(t, dragI).translated(dragX, 0.0f).withY(l.getY() - 2.0f));
+            if (n < 32) ui::button(g, plus(t), "+", false, false, 13.0f);
+        }
+        drawInspector(g);
+    }
+    void drawBlock(juce::Graphics& g, int t, int i, juce::Rectangle<float> r)
+    {
+        const auto& sk = s();
+        const auto& k = tr[(size_t) t];
+        const int v = k.it[i];
+        const bool sel = t == selT && i == selI, now = k.on && k.cur == t && k.pos == i;
+        g.setColour(v == 0xFE ? sk.hot.withAlpha(0.85f) : v == 0xFD ? sk.panel2 : sk.accent.withAlpha(0.8f));
+        g.fillRect(r);
+        if (now) { g.setColour(sk.white); g.drawRect(r.expanded(1.0f), 2.0f); }
+        if (sel) { g.setColour(sk.hot); g.drawRect(r.expanded(2.0f), 2.0f); }
+        g.setColour(v == 0xFD ? sk.dim : sk.bg);
+        ui::fitText(g, label(k, i), r.reduced(4.0f, 0.0f).withTrimmedBottom(r.getHeight() * 0.35f), ui::labelBold(13.0f), juce::Justification::centredLeft);
+        juce::String sub;
+        if (v != 0xFE && v != 0xFD && k.tb[i]) sub << "B" << (int) k.tb[i] << " ";
+        if (k.tk[i]) sub << "K" << (int) k.tk[i];
+        if (sub.isNotEmpty()) ui::fitText(g, sub, r.reduced(4.0f, 0.0f).withTrimmedTop(r.getHeight() * 0.6f), ui::label(9.5f), juce::Justification::centredLeft);
+    }
+    // the item picked: its pattern, loops, break, kick; out, a copy, its kind
+    std::vector<std::pair<juce::Rectangle<float>, int>> ib;
+    void drawInspector(juce::Graphics& g)
+    {
+        const auto& sk = s();
+        ib.clear();
+        auto a = inspector();
+        if (selI < 0 || selT >= (int) tr.size() || selI >= count(tr[(size_t) selT])) {
+            g.setColour(sk.dim);
+            g.setFont(ui::label(12.0f));
+            g.drawText("Clique un element d'une track pour le regler ici.", a, juce::Justification::centredLeft);
+            return;
+        }
+        const auto& k = tr[(size_t) selT];
+        g.setColour(sk.ink);
+        g.setFont(ui::labelBold(14.0f));
+        g.drawText("TRACK " + juce::String(selT + 1) + "  /  " + juce::String(selI + 1) + ":  " + label(k, selI), a.removeFromLeft(240.0f), juce::Justification::centredLeft);
+        auto bt = [&](const juce::String& t, int id, float w) { auto r = a.removeFromLeft(w).reduced(2.0f, 4.0f); ui::button(g, r, t, false, false, 11.0f); ib.push_back({ r, id }); a.removeFromLeft(4.0f); };
+        const bool pat = k.it[selI] != 0xFE && k.it[selI] != 0xFD;
+        if (pat) { bt("< P", 1, 34); bt("PATTERN...", 2, 92); bt("P >", 3, 34); bt("- LOOP", 4, 62); bt("LOOP +", 5, 62); bt("BREAK...", 6, 84); }
+        bt("KICK...", 7, 76);
+        bt("<< ", 8, 40); bt(" >>", 9, 40);
+        bt("DUPLIQUER", 10, 92); bt("SUPPRIMER", 11, 92);
+    }
+    void write(const lb_track_t& t) { ed.proc.trackWrite(t); repaint(); }
+    void popPattern(int t, int i, bool insert)
+    {
+        juce::PopupMenu m;
+        for (int gq = 0; gq < 4; ++gq) {
+            juce::PopupMenu sub;
+            for (int p = gq * 16 + 1; p <= gq * 16 + 16; ++p) sub.addItem(p, "P" + juce::String(p));
+            m.addSubMenu("P" + juce::String(gq * 16 + 1) + " - P" + juce::String(gq * 16 + 16), sub);
+        }
+        m.addSeparator();
+        m.addItem(0xFE + 1000, "DROP");
+        m.addItem(0xFD + 1000, "GAP (un trou a remplir)");
+        juce::Component::SafePointer<SongPanel> self(this);
+        m.showMenuAsync(juce::PopupMenu::Options(), [self, t, i, insert](int r) {
+            if (! self || r == 0 || t >= (int) self->tr.size()) return;
+            auto k = self->tr[(size_t) t];
+            const int v = r >= 1000 ? r - 1000 : r, n = count(k);
+            if (insert) {
+                if (n >= 32) return;
+                k.it[n] = (uint8_t) v; k.rep[n] = 1; k.tb[n] = 0; k.tk[n] = 0;
+                self->selT = t; self->selI = n;
+            } else
+                k.it[i] = (uint8_t) v;
+            self->tr[(size_t) t] = k;
+            self->write(k);
+        });
+    }
+    void listMenu(const juce::StringArray& items, int current, std::function<void(int)> done)
+    {
+        juce::PopupMenu m;
+        for (int i = 0; i < items.size(); ++i) m.addItem(1 + i, items[i], true, i == current);
+        m.showMenuAsync(juce::PopupMenu::Options(), [done](int r) { if (r > 0) done(r - 1); });
+    }
+    void inspectorClick(int id)
+    {
+        if (selT >= (int) tr.size()) return;
+        auto k = tr[(size_t) selT];
+        const int n = count(k);
+        if (selI < 0 || selI >= n) return;
+        juce::Component::SafePointer<SongPanel> self(this);
+        const int t = selT, i = selI;
+        auto apply = [self, t](const lb_track_t& kk) { if (self) { self->tr[(size_t) t] = kk; self->write(kk); } };
+        switch (id) {
+        case 1: case 3: k.it[i] = (uint8_t) juce::jlimit(1, 64, (int) k.it[i] + (id == 3 ? 1 : -1)); apply(k); break;
+        case 2: popPattern(t, i, false); break;
+        case 4: case 5: k.rep[i] = (uint8_t) juce::jlimit(1, 16, (int) k.rep[i] + (id == 5 ? 1 : -1)); apply(k); break;
+        case 6: {
+            const auto all = ed.proc.breaks();
+            juce::StringArray names { "LE BREAK EN JEU" };
+            for (auto& b : all) names.add(b.name);
+            listMenu(names, k.tb[i], [self, t, i, k](int c) mutable { if (! self) return; k.tb[i] = (uint8_t) c; self->tr[(size_t) t] = k; self->write(k); });
+            break;
+        }
+        case 7: {
+            juce::StringArray names { "LE KICK EN JEU" };
+            for (int q = 1; q <= 20; ++q) names.add("KICK " + juce::String(q));
+            listMenu(names, k.tk[i], [self, t, i, k](int c) mutable { if (! self) return; k.tk[i] = (uint8_t) c; self->tr[(size_t) t] = k; self->write(k); });
+            break;
+        }
+        case 8: case 9: {                         // (moved a place earlier / later)
+            const int j = id == 8 ? i - 1 : i + 1;
+            if (j < 0 || j >= n) return;
+            std::swap(k.it[i], k.it[j]); std::swap(k.rep[i], k.rep[j]); std::swap(k.tb[i], k.tb[j]); std::swap(k.tk[i], k.tk[j]);
+            selI = j;
+            apply(k);
+            break;
+        }
+        case 10: {                                // (a copy after it)
+            if (n >= 32) return;
+            for (int q = n; q > i + 1; --q) { k.it[q] = k.it[q - 1]; k.rep[q] = k.rep[q - 1]; k.tb[q] = k.tb[q - 1]; k.tk[q] = k.tk[q - 1]; }
+            k.it[i + 1] = k.it[i]; k.rep[i + 1] = k.rep[i]; k.tb[i + 1] = k.tb[i]; k.tk[i + 1] = k.tk[i];
+            selI = i + 1;
+            apply(k);
+            break;
+        }
+        case 11: {                                // (out, the rest closing up)
+            for (int q = i; q < 31; ++q) { k.it[q] = k.it[q + 1]; k.rep[q] = k.rep[q + 1]; k.tb[q] = k.tb[q + 1]; k.tk[q] = k.tk[q + 1]; }
+            k.it[31] = 0;
+            selI = juce::jmin(i, count(k) - 1);
+            apply(k);
+            break;
+        }
+        default: break;
+        }
+    }
+    std::pair<int, int> at(juce::Point<float> p) const
+    {
+        for (int t = 0; t < (int) tr.size(); ++t)
+            for (int i = 0; i < count(tr[(size_t) t]); ++i)
+                if (block(t, i).contains(p)) return { t, i };
+        return { -1, -1 };
+    }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        const auto p = e.position;
+        for (auto& b : ib) if (b.first.contains(p)) { inspectorClick(b.second); return; }
+        if (tr.size() < 8) return;
+        for (int t = 0; t < 8; ++t) {
+            if (playBtn(t).contains(p)) { const bool on = tr[(size_t) t].on && tr[(size_t) t].cur == t; ed.proc.trackPlay(on ? 2 : 1, t); return; }
+            if (endBtn(t).contains(p)) { auto k = tr[(size_t) t]; k.end = (k.end + 1) % 3; tr[(size_t) t] = k; write(k); return; }
+            if (count(tr[(size_t) t]) < 32 && plus(t).contains(p)) { popPattern(t, 0, true); return; }
+            if (lane(t).withWidth(HEAD).contains(p)) { ed.proc.trackPlay(3, t); selT = t; selI = -1; repaint(); return; }
+        }
+        const auto h = at(p);
+        if (h.first >= 0) { selT = h.first; selI = h.second; dragT = h.first; dragI = h.second; dragX = 0.0f; downX = p.x; repaint(); }
+    }
+    void mouseDrag(const juce::MouseEvent& e) override
+    {
+        if (dragI < 0) return;
+        dragX = e.position.x - downX;
+        repaint();
+    }
+    void mouseUp(const juce::MouseEvent& e) override
+    {
+        if (dragI >= 0 && std::abs(dragX) > 6.0f && dragT < (int) tr.size()) {   // (dropped: before the block it lands on)
+            auto k = tr[(size_t) dragT];
+            const int n = count(k);
+            const float x = block(dragT, dragI).getCentreX() + dragX;
+            int to = n - 1;
+            for (int i = 0; i < n; ++i) if (x < block(dragT, i).getCentreX()) { to = i > dragI ? i - 1 : i; break; }
+            to = juce::jlimit(0, n - 1, to);
+            if (to != dragI) {
+                const uint8_t a[4] = { k.it[dragI], k.rep[dragI], k.tb[dragI], k.tk[dragI] };
+                if (to < dragI) for (int q = dragI; q > to; --q) { k.it[q] = k.it[q - 1]; k.rep[q] = k.rep[q - 1]; k.tb[q] = k.tb[q - 1]; k.tk[q] = k.tk[q - 1]; }
+                else for (int q = dragI; q < to; ++q) { k.it[q] = k.it[q + 1]; k.rep[q] = k.rep[q + 1]; k.tb[q] = k.tb[q + 1]; k.tk[q] = k.tk[q + 1]; }
+                k.it[to] = a[0]; k.rep[to] = a[1]; k.tb[to] = a[2]; k.tk[to] = a[3];
+                tr[(size_t) dragT] = k;
+                selI = to;
+                write(k);
+            }
+        }
+        (void) e;
+        dragI = dragT = -1;
+        dragX = 0.0f;
+        repaint();
+    }
+    void mouseDoubleClick(const juce::MouseEvent& e) override
+    {
+        const auto h = at(e.position);
+        if (h.first >= 0) popPattern(h.first, h.second, false);
+    }
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override   // (a block's loops)
+    {
+        const auto h = at(e.position);
+        if (h.first < 0 || w.deltaY == 0.0f) return;
+        auto k = tr[(size_t) h.first];
+        if (k.it[h.second] == 0xFE || k.it[h.second] == 0xFD) return;
+        k.rep[h.second] = (uint8_t) juce::jlimit(1, 16, (int) k.rep[h.second] + (w.deltaY > 0 ? 1 : -1));
+        tr[(size_t) h.first] = k;
+        selT = h.first; selI = h.second;
+        write(k);
+    }
+};
+
 // ------------------------------------------------------------------------- the FM-1's screen: a window aside ---
 // (FLEXOR: "garder l'aperçu dans un coin et régler sa taille, mais qu'il ne soit pas quelque chose que je dois
 // constamment regarder"): floating, moved by its bar, sized by its corner, kept where it was left
@@ -1408,9 +1682,9 @@ struct Pads : Part
 // ---------------------------------------------------------------------------------------------------- root ---
 struct LoafBreakerEditor::Root : Part
 {
-    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), menus(e), seqp(e), machine(e), pads(e)
+    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), menus(e), seqp(e), song(e), machine(e), pads(e)
     {
-        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &menus, &seqp, &pads, &machine })
+        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &menus, &seqp, &song, &pads, &machine })
             addAndMakeVisible(c);
         setSize(W, H);
         auto box = juce::Rectangle<int>::fromString(ui::settings().getUserSettings()->getValue("machineBox"));
@@ -1423,20 +1697,25 @@ struct LoafBreakerEditor::Root : Part
     WavePanel wave;
     MenuPage menus;
     SeqPanel seqp;
+    SongPanel song;
     Machine machine;
     Pads pads;
-    bool seqShown = false;
+    bool seqShown = false, songShown = false;
     void resized() override
     {
         header.setBounds(0, 0, W, 86);
         cats.setBounds(0, 86, W, 44);
         tabs.setBounds(0, 130, W, 36);
         seqShown = ed.seqView();
-        wave.setVisible(! seqShown);
+        songShown = ed.songView();
+        ed.proc.tracksWanted = songShown;
+        wave.setVisible(! seqShown && ! songShown);
         menus.setVisible(! seqShown);
         seqp.setVisible(seqShown);
+        song.setVisible(songShown);
         wave.setBounds(8, 172, W - 16, 104);
-        menus.setBounds(8, 282, W - 16, 404);
+        song.setBounds(8, 172, W - 16, 380);
+        menus.setBounds(8, songShown ? 558 : 282, W - 16, songShown ? 128 : 404);
         seqp.setBounds(8, 172, W - 16, 514);
         machine.setVisible(ed.showMachine);
         machine.toFront(false);
@@ -1503,7 +1782,7 @@ void LoafBreakerEditor::timerCallback()
         root->wave.repaint();
         if (ui::fm1SkinIs(m.skin)) root->repaint();   // (the VST follows the FM-1's skin: it changed)
         if (juce::String(m.dom) != lastDom) { lastDom = m.dom; opts.clear(); asked.clear(); }   // (another domain: its lists looked at again)
-        if (seqView() != root->seqShown) root->resized();
+        if (seqView() != root->seqShown || songView() != root->songShown) root->resized();
         // a source asked for (SOUNDS: KICK, DRUMS, BREAK): SEL + EDIT until it is the one
         if (pendingSource.isNotEmpty()) {
             if (juce::String(m.label) == pendingSource || ++sourceTries > 4) pendingSource.clear();
@@ -1530,6 +1809,7 @@ void LoafBreakerEditor::timerCallback()
         it = asked.erase(it);
         root->menus.content.update();
     }
+    if (songView() && proc.tracksIfNew(tracksSerial, root->song.tr) && root->song.dragI < 0) root->song.repaint();
     if (seqView()) {
         if (proc.seqIfNew(seqSerial, seq)) root->seqp.repaint();
         if (proc.patternsIfNew(patsSerial, pats)) root->seqp.repaint();
@@ -1554,6 +1834,11 @@ void LoafBreakerEditor::wantOptions(int part, int knob)
     if (asked.size() >= 12) return;
     const int id = proc.askOptions(part, knob, p.part, p.kname[knob & 3]);
     if (id > 0) asked[id] = key;
+}
+bool LoafBreakerEditor::songView() const
+{
+    if (juce::String(m.dom) != "SONG") return false;
+    return m.tab_on >= 0 && m.tab_on < m.ntabs && juce::String(m.tabs[m.tab_on]) == "TRACKS";
 }
 bool LoafBreakerEditor::seqView() const
 {

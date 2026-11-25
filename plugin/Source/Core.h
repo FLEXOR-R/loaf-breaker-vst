@@ -57,6 +57,9 @@ public:
     int (*vstPutKicks)(const uint8_t* blobs, const uint8_t* to, int nk) = nullptr;
     int (*breakName)(int i, char* out, int cap) = nullptr;
     void (*breakGo)(int i) = nullptr;
+    void (*track)(int t, lb_track_t* o) = nullptr;
+    void (*trackWrite)(const lb_track_t* t) = nullptr;
+    void (*trackPlay)(int op, int t) = nullptr;
     int (*fm1Take)(const uint8_t* fm1, uint32_t n, const lb_pick_t* p, int np, char* rep, uint32_t rcap) = nullptr;
     // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance
     static const juce::MemoryBlock& bankFile();

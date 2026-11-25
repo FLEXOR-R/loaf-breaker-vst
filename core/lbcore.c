@@ -597,3 +597,43 @@ uint32_t lb_kick_render(const uint8_t *blob, float *lr, uint32_t frames)
     snap_put(lb_snapbuf);
     return frames;
 }
+
+/* ---- the song (the VST's arranger: FLEXOR, "penser la VST comme un mini DAW"): a track read whole, written whole
+ * (each item checked, as the Studio's), played, stopped, picked: the firmware's edx_track, edx_track_write, track_play */
+void lb_track(int t, lb_track_t *o)
+{
+    static uint8_t b[256];
+    uint32_t n = edx_track((uint32_t)t % NTRACKS, b), k = 7;
+    memset(o, 0, sizeof *o);
+    if (n < 7u + 4u * TRK_ITEMS + 2u)
+        return;
+    o->track = b[1], o->cur = b[2], o->on = b[3], o->pos = b[4], o->end = b[5], o->from = b[6];
+    memcpy(o->it, b + k, TRK_ITEMS); k += TRK_ITEMS;
+    memcpy(o->rep, b + k, TRK_ITEMS); k += TRK_ITEMS;
+    memcpy(o->tb, b + k, TRK_ITEMS); k += TRK_ITEMS;
+    memcpy(o->tk, b + k, TRK_ITEMS); k += TRK_ITEMS;
+    o->patbars = b[k], o->dropbars = b[k + 1];
+}
+void lb_track_write(const lb_track_t *t)
+{
+    static uint8_t u[4 + 4 * TRK_ITEMS];
+    u[0] = 4u, u[1] = (uint8_t)(t->track % NTRACKS), u[2] = (uint8_t)t->end, u[3] = (uint8_t)t->from;
+    memcpy(u + 4, t->it, TRK_ITEMS);
+    memcpy(u + 4 + TRK_ITEMS, t->rep, TRK_ITEMS);
+    memcpy(u + 4 + 2 * TRK_ITEMS, t->tb, TRK_ITEMS);
+    memcpy(u + 4 + 3 * TRK_ITEMS, t->tk, TRK_ITEMS);
+    edx_track_write(u, sizeof u);
+}
+void lb_track_play(int op, int t)        /* 1 play track t, 2 stop, 3 pick it */
+{
+    if (op == 1) {
+        set.trk = (uint8_t)((uint32_t)t % NTRACKS);
+        track_play(0);
+    } else if (op == 2 && ui.trk_on)
+        track_stop("STOPPED");
+    else if (op == 3) {
+        set.trk = (uint8_t)((uint32_t)t % NTRACKS);
+        ui.trk_cur = 0u;
+        changed();
+    }
+}
