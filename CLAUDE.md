@@ -173,7 +173,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   CmdKeyKnob. KnobBar (controller on): K1-K4 as the FM-1's foot names them (SEL's while held), values, gauges, the one
   turned lit; the card the FM-1's knobs turn now names its settings K1..K4. The kick card says PRESETS goes through
   KICK 1-20 while the PRESET list loads a built-in (FLEXOR saw "3, 5, 4": the memories' built-ins, KMEM_ORD, are not in
-  the list's order).
+  the list's order). The cards follow ALGORITHM (FLEXOR: "il faut que la barre sur le côté s'aligne automatiquement"):
+  MenuContent::followLive scrolls the live card into view when it changes (the hand's scrolling kept otherwise).
 - Waveforms (25 Nov 2026, FLEXOR: "configurer les types de waveform ... les kicks ... rekordbox serato 3band ... garder
   aussi l'option actuelle"): chips on the break's picture and on the kick's / drums' (settings waveStyleB, waveStyleS):
   ACTUEL (the VST's own), RGB, SERATO, 3 BAND, BLUE (the firmware's common.c wave_col, Ui.cpp ui::waveColumn), FM-1

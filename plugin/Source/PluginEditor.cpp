@@ -1050,6 +1050,27 @@ struct MenuContent : Part
         if (dragKey.isNotEmpty())
             for (auto& c : cards) for (auto& q : c.ps) if (q.key == dragKey) dragP = &q;
         repaint();
+        followLive();
+    }
+    // (FLEXOR: "quand je descends sur les options avec le knob algorithm en mode controleur il faut que la barre sur le
+    // côté s'aligne automatiquement"): the card ALGORITHM is on (live) scrolled into view when it changes; the hand's own
+    // scrolling left alone otherwise
+    juce::String lastLive;
+    void followLive()
+    {
+        for (auto& c : cards) {
+            if (! c.live) continue;
+            const juce::String id = ed.pageKey() + "|" + c.title;
+            if (id == lastLive) return;
+            lastLive = id;
+            if (auto* v = findParentComponentOfClass<juce::Viewport>()) {
+                const int top = juce::jmax(0, (int) c.r.getY() - 8), bot = (int) c.r.getBottom() + 8;
+                const int vy = v->getViewPositionY(), vh = v->getViewHeight();
+                if (top < vy) v->setViewPosition(0, top);
+                else if (bot > vy + vh) v->setViewPosition(0, juce::jmin(top, bot - vh));
+            }
+            return;
+        }
     }
     void layoutCard(Card& c)
     {
@@ -1157,6 +1178,7 @@ struct MenuContent : Part
         for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c)) || c.eq != eqFor(c);
         if (relayout) { rebuild(); return; }
         repaint();
+        followLive();
     }
     // ---- drawing
     void paint(juce::Graphics& g) override
