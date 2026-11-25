@@ -2055,10 +2055,79 @@ struct SongPanel : Part
     explicit SongPanel(LBE& e) : Part(e) {}
     std::vector<lb_track_t> tr;
     int selT = 0, selI = -1, dragI = -1, dragT = -1, hover = -1;
-    float dragX = 0.0f, downX = 0.0f;
-    static constexpr float HEAD = 170.0f, LANE_H = 34.0f, TOP = 28.0f;
-    juce::Rectangle<float> lane(int t) const { return { 8.0f, TOP + t * (LANE_H + 4.0f), (float) getWidth() - 16.0f, LANE_H }; }
-    juce::Rectangle<float> inspector() const { const float y = TOP + 8 * (LANE_H + 4.0f) + 6.0f; return { 8.0f, y, (float) getWidth() - 16.0f, (float) getHeight() - y - 6.0f }; }
+    float dragX = 0.0f, dragY = 0.0f, downX = 0.0f, downY = 0.0f;
+    // (FLEXOR: "gérer les patterns ici comme dans un piano roll ... pouvoir les étendre, mettre entre d'autres"): a block's
+    // right edge stretched (its loops), a block dragged between two others, onto another track (CTRL / ALT: a copy), the
+    // palette's patterns dragged in where they go (a click: after the block picked), a right click to insert
+    int resT = -1, resI = -1;            // (a block stretched: its track and place)
+    float resPb = 1.0f;                  // (the bar's width when the stretch began)
+    int palV = -1;                       // (a palette's pattern held: its item, 1..64 / 0xFE / 0xFD)
+    juce::Point<float> palAt;
+    int dropT = -1, dropAt = -1;         // (where a drag would land: the track and the place)
+    int palGrp = 0;                      // (the palette's group of 16)
+    bool busy() const { return dragI >= 0 || resI >= 0 || palV >= 0; }
+    static constexpr float HEAD = 170.0f, TOP = 28.0f, PAL_H = 26.0f, LANES = TOP + PAL_H + 6.0f;
+    float laneH() const { return juce::jlimit(26.0f, 70.0f, ((float) getHeight() - LANES - 52.0f) / 8.0f - 4.0f); }   // (the lanes as tall as the room)
+    juce::Rectangle<float> lane(int t) const { return { 8.0f, LANES + t * (laneH() + 4.0f), (float) getWidth() - 16.0f, laneH() }; }
+    juce::Rectangle<float> inspector() const { const float y = LANES + 8 * (laneH() + 4.0f) + 6.0f; return { 8.0f, y, (float) getWidth() - 16.0f, (float) getHeight() - y - 6.0f }; }
+    // the palette: < P1-16 >, the group's 16 patterns, DROP, GAP (j: 0 <, 1 the group, 2 >, 3..18 its patterns, 19, 20)
+    juce::Rectangle<float> palBtn(int j) const
+    {
+        const float y = TOP + 1.0f, h = PAL_H - 2.0f;
+        float x = 14.0f;
+        if (j == 0) return { x, y, 22.0f, h };
+        x += 24.0f;
+        if (j == 1) return { x, y, 70.0f, h };
+        x += 72.0f;
+        if (j == 2) return { x, y, 22.0f, h };
+        x += 32.0f;
+        const float w = juce::jlimit(24.0f, 52.0f, ((float) getWidth() - x - 140.0f) / 16.0f);
+        if (j <= 18) return { x + (j - 3) * w, y, w - 3.0f, h };
+        x += 16.0f * w + 10.0f;
+        return j == 19 ? juce::Rectangle<float>(x, y, 58.0f, h) : juce::Rectangle<float>(x + 62.0f, y, 48.0f, h);
+    }
+    int palValue(int j) const { return j >= 3 && j <= 18 ? palGrp * 16 + j - 2 : j == 19 ? 0xFE : j == 20 ? 0xFD : -1; }
+    struct Item { uint8_t it, rep, tb, tk; };
+    static Item get(const lb_track_t& k, int i) { return { k.it[i], k.rep[i], k.tb[i], k.tk[i] }; }
+    static void put(lb_track_t& k, int i, Item a) { k.it[i] = a.it; k.rep[i] = a.rep; k.tb[i] = a.tb; k.tk[i] = a.tk; }
+    static void removeAt(lb_track_t& k, int i)
+    {
+        for (int q = i; q < 31; ++q) put(k, q, get(k, q + 1));
+        k.it[31] = 0; k.rep[31] = k.tb[31] = k.tk[31] = 0;
+    }
+    static bool insertAt(lb_track_t& k, int i, Item a)
+    {
+        const int n = count(k);
+        if (n >= 32) return false;
+        i = juce::jlimit(0, n, i);
+        for (int q = n; q > i; --q) put(k, q, get(k, q - 1));
+        put(k, i, a);
+        return true;
+    }
+    int laneAt(float y) const { for (int t = 0; t < 8; ++t) if (lane(t).expanded(0.0f, 2.0f).contains(lane(t).getX() + 1.0f, y)) return t; return -1; }
+    int placeAt(int t, float x) const   // (the place a block dropped at x takes: before the first block whose middle is right of it)
+    {
+        const int n = count(tr[(size_t) t]);
+        for (int i = 0; i < n; ++i) if (x < block(t, i).getCentreX()) return i;
+        return n;
+    }
+    float placeX(int t, int i) const
+    {
+        const int n = count(tr[(size_t) t]);
+        if (i < n) return block(t, i).getX() - 2.0f;
+        return n ? block(t, n - 1).getRight() + 1.0f : lane(t).getX() + HEAD;
+    }
+    int edgeAt(juce::Point<float> p, int& t) const   // (a block's right edge under the hand: stretched)
+    {
+        for (t = 0; t < (int) tr.size(); ++t)
+            for (int i = 0; i < count(tr[(size_t) t]); ++i) {
+                const auto r = block(t, i);
+                if (tr[(size_t) t].it[i] != 0xFE && p.y >= r.getY() && p.y <= r.getBottom() && p.x >= r.getRight() - 7.0f && p.x <= r.getRight() + 3.0f)
+                    return i;
+            }
+        t = -1;
+        return -1;
+    }
     static int count(const lb_track_t& t) { int n = 0; while (n < 32 && t.it[n]) n++; return n; }
     static int bars(const lb_track_t& t, int i) { return t.it[i] == 0xFE ? juce::jmax(1, t.dropbars) : juce::jmax(1, (int) t.rep[i]) * juce::jmax(1, t.patbars); }
     float pxBar() const
@@ -2078,10 +2147,10 @@ struct SongPanel : Part
     {
         const int n = count(tr[(size_t) t]);
         const float x = n ? block(t, n - 1).getRight() + 4.0f : lane(t).getX() + HEAD + 2.0f;
-        return { x, lane(t).getY() + 5.0f, 26.0f, LANE_H - 10.0f };
+        return { x, lane(t).getY() + 5.0f, 26.0f, laneH() - 10.0f };
     }
-    juce::Rectangle<float> playBtn(int t) const { return { lane(t).getX() + 96.0f, lane(t).getY() + 5.0f, 30.0f, LANE_H - 10.0f }; }
-    juce::Rectangle<float> endBtn(int t) const { return { lane(t).getX() + 130.0f, lane(t).getY() + 5.0f, 34.0f, LANE_H - 10.0f }; }
+    juce::Rectangle<float> playBtn(int t) const { return { lane(t).getX() + 96.0f, lane(t).getY() + 5.0f, 30.0f, laneH() - 10.0f }; }
+    juce::Rectangle<float> endBtn(int t) const { return { lane(t).getX() + 130.0f, lane(t).getY() + 5.0f, 34.0f, laneH() - 10.0f }; }
     juce::String label(const lb_track_t& t, int i) const
     {
         const int v = t.it[i];
@@ -2098,7 +2167,24 @@ struct SongPanel : Part
         g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
         g.setColour(sk.dim);
         g.setFont(ui::label(8.5f).withExtraKerningFactor(0.14f));
-        g.drawText("TRACKS  /  CLIC : CHOISIR   GLISSER : DEPLACER   DOUBLE-CLIC : LE PATTERN   + : AJOUTER   > : JOUER", 14, 4, 1000, 20, juce::Justification::centredLeft);
+        g.drawText("TRACKS  /  GLISSER : DEPLACER (CTRL : COPIER, AUSSI VERS UNE AUTRE TRACK)   BORD DROIT : ETIRER   PALETTE : GLISSER OU IL FAUT (CLIC : APRES LE BLOC CHOISI)   CLIC DROIT : INSERER   > : JOUER",
+                   14, 4, 1400, 20, juce::Justification::centredLeft);
+        {                                // the palette
+            static const char* GRP[4] = { "SUB", "PUNCH", "GRIT", "CLICK" };
+            ui::button(g, palBtn(0), "<", false, false, 12.0f);
+            ui::button(g, palBtn(1), "P" + juce::String(palGrp * 16 + 1) + "-" + juce::String(palGrp * 16 + 16), false, false, 11.0f);
+            ui::button(g, palBtn(2), ">", false, false, 12.0f);
+            for (int j = 3; j <= 20; ++j) {
+                auto r = palBtn(j);
+                const int v = palValue(j);
+                g.setColour(v == 0xFE ? sk.hot.withAlpha(0.85f) : sk.panel2.brighter(0.1f));
+                g.fillRoundedRectangle(r, 3.0f);
+                if (v == 0xFD) ui::hatch(g, r);
+                if (v >= 1 && v <= 64) { g.setColour(ui::layer(GRP[(v - 1) / 16])); g.fillRoundedRectangle(r.withWidth(3.0f), 1.5f); }
+                g.setColour(v == 0xFE ? sk.bg : sk.ink);
+                ui::fitText(g, v == 0xFE ? juce::String("DROP") : v == 0xFD ? juce::String("GAP") : "P" + juce::String(v), r.reduced(4.0f, 0.0f), ui::labelBold(10.5f));
+            }
+        }
         if (tr.size() < 8) return;
         const float pb = pxBar();
         for (int t = 0; t < 8; ++t) {
@@ -2123,8 +2209,22 @@ struct SongPanel : Part
                 if (t == dragT && i == dragI) continue;
                 drawBlock(g, t, i, block(t, i));
             }
-            if (t == dragT && dragI >= 0) drawBlock(g, t, dragI, block(t, dragI).translated(dragX, 0.0f).withY(l.getY() - 2.0f));
             if (n < 32) ui::button(g, plus(t), "+", false, false, 13.0f);
+        }
+        if (dropT >= 0 && dropT < 8 && ((dragI >= 0 && std::abs(dragX) + std::abs(dragY) > 6.0f) || palV >= 0)) {   // where it lands
+            const auto l = lane(dropT);
+            g.setColour(sk.hot);
+            g.fillRoundedRectangle(placeX(dropT, dropAt) - 1.5f, l.getY() - 3.0f, 3.0f, l.getHeight() + 6.0f, 1.5f);
+        }
+        if (dragI >= 0 && dragT >= 0 && dragT < 8)   // the block held, under the hand
+            drawBlock(g, dragT, dragI, block(dragT, dragI).translated(dragX, dragY));
+        if (palV >= 0) {                 // a palette's pattern held
+            const float w = palV == 0xFE ? 58.0f : 46.0f;
+            auto r = juce::Rectangle<float>(palAt.x - w / 2, palAt.y - 13.0f, w, 26.0f);
+            g.setColour(sk.hot.withAlpha(0.9f));
+            g.fillRoundedRectangle(r, 3.0f);
+            g.setColour(sk.bg);
+            ui::fitText(g, palV == 0xFE ? juce::String("DROP") : palV == 0xFD ? juce::String("GAP") : "P" + juce::String(palV), r.reduced(4.0f, 0.0f), ui::labelBold(11.0f));
         }
         drawInspector(g);
     }
@@ -2161,6 +2261,11 @@ struct SongPanel : Part
         }
         if (now) { g.setColour(sk.white); g.drawRoundedRectangle(r.expanded(1.0f), 3.0f, 2.0f); }
         if (sel) { g.setColour(sk.hot); g.drawRoundedRectangle(r.expanded(2.0f), 3.0f, 2.0f); }
+        if (v != 0xFE) {                 // (its right edge: a grip, stretched)
+            g.setColour((sel ? sk.hot : sk.ink).withAlpha(t == resT && i == resI ? 1.0f : 0.35f));
+            g.fillRoundedRectangle(r.getRight() - 4.0f, r.getY() + r.getHeight() * 0.25f, 2.5f, r.getHeight() * 0.5f, 1.0f);
+            if (t == resT && i == resI) { g.setColour(sk.hot); g.drawRoundedRectangle(r.expanded(1.0f), 3.0f, 1.5f); }
+        }
         g.setColour(v == 0xFD ? sk.dim : v == 0xFE ? sk.bg : sk.ink);
         ui::fitText(g, label(k, i), r.reduced(8.0f, 0.0f).withTrimmedBottom(r.getHeight() * 0.42f), ui::labelBold(11.0f), juce::Justification::centredLeft);
         juce::String sub;
@@ -2193,6 +2298,67 @@ struct SongPanel : Part
         bt("DUPLIQUER", 10, 92); bt("SUPPRIMER", 11, 92);
     }
     void write(const lb_track_t& t) { ed.proc.trackWrite(t); repaint(); }
+    static void patternMenu(juce::PopupMenu& m, int base)   // (the patterns by group, DROP, GAP: base + item)
+    {
+        for (int gq = 0; gq < 4; ++gq) {
+            juce::PopupMenu sub;
+            for (int p = gq * 16 + 1; p <= gq * 16 + 16; ++p) sub.addItem(base + p, "P" + juce::String(p));
+            m.addSubMenu("P" + juce::String(gq * 16 + 1) + " - P" + juce::String(gq * 16 + 16), sub);
+        }
+        m.addItem(base + 0xFE, "DROP");
+        m.addItem(base + 0xFD, "GAP (un trou a remplir)");
+    }
+    void blockMenu(int t, int i)        // (a right click: insert before / after it, its pattern, its loops, out)
+    {
+        juce::PopupMenu m, before, after, repl, loops;
+        patternMenu(before, 1000);
+        patternMenu(after, 2000);
+        patternMenu(repl, 3000);
+        const auto& k = tr[(size_t) t];
+        const bool full = count(k) >= 32, drop = k.it[i] == 0xFE;
+        for (int r = 1; r <= 16; ++r) loops.addItem(4000 + r, "x" + juce::String(r), true, k.rep[i] == r);
+        m.addSubMenu("Inserer avant", before, ! full);
+        m.addSubMenu("Inserer apres", after, ! full);
+        m.addSubMenu("Remplacer par", repl);
+        m.addSubMenu("Boucles", loops, ! drop);
+        m.addSeparator();
+        m.addItem(5001, "Dupliquer", ! full);
+        m.addItem(5002, "Supprimer");
+        juce::Component::SafePointer<SongPanel> self(this);
+        m.showMenuAsync(juce::PopupMenu::Options(), [self, t, i](int r) {
+            if (! self || r == 0 || t >= (int) self->tr.size()) return;
+            auto k = self->tr[(size_t) t];
+            int sel = i;
+            if (r >= 1000 && r < 3000) {
+                const int at = r < 2000 ? i : i + 1;
+                if (! insertAt(k, at, { (uint8_t) (r % 1000), 1, 0, 0 })) return;
+                sel = at;
+            } else if (r >= 3000 && r < 4000) k.it[i] = (uint8_t) (r - 3000);
+            else if (r > 4000 && r <= 4016) k.rep[i] = (uint8_t) (r - 4000);
+            else if (r == 5001) { if (! insertAt(k, i + 1, get(k, i))) return; sel = i + 1; }
+            else if (r == 5002) { removeAt(k, i); sel = juce::jmin(i, count(k) - 1); }
+            self->selT = t; self->selI = sel;
+            self->tr[(size_t) t] = k;
+            self->write(k);
+        });
+    }
+    void laneMenu(int t)                // (a right click on a track's empty end: added at its end)
+    {
+        if (count(tr[(size_t) t]) >= 32) return;
+        juce::PopupMenu m, add;
+        patternMenu(add, 1000);
+        m.addSubMenu("Ajouter a la fin", add);
+        juce::Component::SafePointer<SongPanel> self(this);
+        m.showMenuAsync(juce::PopupMenu::Options(), [self, t](int r) {
+            if (! self || r < 1000 || t >= (int) self->tr.size()) return;
+            auto k = self->tr[(size_t) t];
+            const int n = count(k);
+            if (! insertAt(k, n, { (uint8_t) (r - 1000), 1, 0, 0 })) return;
+            self->selT = t; self->selI = n;
+            self->tr[(size_t) t] = k;
+            self->write(k);
+        });
+    }
     void popPattern(int t, int i, bool insert)
     {
         juce::PopupMenu m;
@@ -2284,10 +2450,20 @@ struct SongPanel : Part
                 if (block(t, i).contains(p)) return { t, i };
         return { -1, -1 };
     }
+    void mouseMove(const juce::MouseEvent& e) override
+    {
+        int t;
+        setMouseCursor(edgeAt(e.position, t) >= 0 ? juce::MouseCursor::LeftRightResizeCursor
+                       : at(e.position).first >= 0 ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::NormalCursor);
+    }
     void mouseDown(const juce::MouseEvent& e) override
     {
         const auto p = e.position;
         for (auto& b : ib) if (b.first.contains(p)) { inspectorClick(b.second); return; }
+        if (palBtn(0).contains(p)) { palGrp = (palGrp + 3) % 4; repaint(); return; }
+        if (palBtn(2).contains(p) || palBtn(1).contains(p)) { palGrp = (palGrp + 1) % 4; repaint(); return; }
+        for (int j = 3; j <= 20; ++j)
+            if (palBtn(j).contains(p)) { palV = palValue(j); palAt = p; downX = p.x; downY = p.y; dropT = -1; repaint(); return; }
         if (tr.size() < 8) return;
         for (int t = 0; t < 8; ++t) {
             if (playBtn(t).contains(p)) { const bool on = tr[(size_t) t].on && tr[(size_t) t].cur == t; ed.proc.trackPlay(on ? 2 : 1, t); return; }
@@ -2296,36 +2472,82 @@ struct SongPanel : Part
             if (lane(t).withWidth(HEAD).contains(p)) { ed.proc.trackPlay(3, t); selT = t; selI = -1; repaint(); return; }
         }
         const auto h = at(p);
-        if (h.first >= 0) { selT = h.first; selI = h.second; dragT = h.first; dragI = h.second; dragX = 0.0f; downX = p.x; repaint(); }
+        if (e.mods.isPopupMenu()) {
+            if (h.first >= 0) { selT = h.first; selI = h.second; repaint(); blockMenu(h.first, h.second); }
+            else if (laneAt(p.y) >= 0) laneMenu(laneAt(p.y));
+            return;
+        }
+        int et;
+        const int ei = edgeAt(p, et);
+        if (ei >= 0) { resT = et; resI = ei; resPb = pxBar(); selT = et; selI = ei; repaint(); return; }
+        if (h.first >= 0) { selT = h.first; selI = h.second; dragT = h.first; dragI = h.second; dragX = dragY = 0.0f; downX = p.x; downY = p.y; dropT = -1; repaint(); }
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        const auto p = e.position;
+        if (resI >= 0 && resT < (int) tr.size()) {   // stretched: whole loops of the pattern, 1 .. 16
+            auto& k = tr[(size_t) resT];
+            const float one = juce::jmax(1, k.patbars) * resPb;
+            const float x0 = block(resT, resI).getX();
+            k.rep[resI] = (uint8_t) juce::jlimit(1, 16, (int) std::lround((p.x - x0) / one));
+            repaint();
+            return;
+        }
+        if (palV >= 0) {
+            palAt = p;
+            dropT = laneAt(p.y);
+            if (dropT >= 0) dropAt = placeAt(dropT, p.x);
+            repaint();
+            return;
+        }
         if (dragI < 0) return;
-        dragX = e.position.x - downX;
+        dragX = p.x - downX;
+        dragY = p.y - downY;
+        dropT = laneAt(p.y);
+        if (dropT >= 0) dropAt = placeAt(dropT, p.x);
         repaint();
     }
     void mouseUp(const juce::MouseEvent& e) override
     {
-        if (dragI >= 0 && std::abs(dragX) > 6.0f && dragT < (int) tr.size()) {   // (dropped: before the block it lands on)
-            auto k = tr[(size_t) dragT];
-            const int n = count(k);
-            const float x = block(dragT, dragI).getCentreX() + dragX;
-            int to = n - 1;
-            for (int i = 0; i < n; ++i) if (x < block(dragT, i).getCentreX()) { to = i > dragI ? i - 1 : i; break; }
-            to = juce::jlimit(0, n - 1, to);
-            if (to != dragI) {
-                const uint8_t a[4] = { k.it[dragI], k.rep[dragI], k.tb[dragI], k.tk[dragI] };
-                if (to < dragI) for (int q = dragI; q > to; --q) { k.it[q] = k.it[q - 1]; k.rep[q] = k.rep[q - 1]; k.tb[q] = k.tb[q - 1]; k.tk[q] = k.tk[q - 1]; }
-                else for (int q = dragI; q < to; ++q) { k.it[q] = k.it[q + 1]; k.rep[q] = k.rep[q + 1]; k.tb[q] = k.tb[q + 1]; k.tk[q] = k.tk[q + 1]; }
-                k.it[to] = a[0]; k.rep[to] = a[1]; k.tb[to] = a[2]; k.tk[to] = a[3];
-                tr[(size_t) dragT] = k;
-                selI = to;
-                write(k);
+        if (resI >= 0) {                 // the stretch written
+            if (resT < (int) tr.size()) write(tr[(size_t) resT]);
+            resI = resT = -1;
+            repaint();
+            return;
+        }
+        if (palV >= 0) {                 // a palette's pattern: where it was dropped, or (a click) after the block picked
+            const bool moved = std::abs(e.position.x - downX) + std::abs(e.position.y - downY) > 6.0f;
+            int t = moved ? dropT : (selT >= 0 && selT < (int) tr.size() ? selT : 0), at = moved ? dropAt : -1;
+            if (t >= 0 && t < (int) tr.size()) {
+                auto k = tr[(size_t) t];
+                if (! moved) at = selI >= 0 && selT == t && selI < count(k) ? selI + 1 : count(k);
+                if (insertAt(k, at, { (uint8_t) palV, 1, 0, 0 })) { selT = t; selI = at; tr[(size_t) t] = k; write(k); }
+            }
+            palV = -1;
+            dropT = -1;
+            repaint();
+            return;
+        }
+        if (dragI >= 0 && std::abs(dragX) + std::abs(dragY) > 6.0f && dragT < (int) tr.size() && dropT >= 0) {
+            const bool copy = e.mods.isCtrlDown() || e.mods.isAltDown() || e.mods.isCommandDown();
+            auto src = tr[(size_t) dragT];
+            const Item a = get(src, dragI);
+            if (dropT == dragT) {        // in its own track: moved (or copied) to its place
+                int to = dropAt;
+                if (! copy) { removeAt(src, dragI); if (to > dragI) to--; }
+                if (insertAt(src, to, a)) { selT = dragT; selI = to; tr[(size_t) dragT] = src; write(src); }
+            } else {                     // onto another track: there, and (not a copy) out of its own
+                auto dst = tr[(size_t) dropT];
+                if (insertAt(dst, dropAt, a)) {
+                    tr[(size_t) dropT] = dst;
+                    write(dst);
+                    if (! copy) { removeAt(src, dragI); tr[(size_t) dragT] = src; write(src); }
+                    selT = dropT; selI = dropAt;
+                }
             }
         }
-        (void) e;
-        dragI = dragT = -1;
-        dragX = 0.0f;
+        dragI = dragT = dropT = -1;
+        dragX = dragY = 0.0f;
         repaint();
     }
     void mouseDoubleClick(const juce::MouseEvent& e) override
@@ -2766,7 +2988,7 @@ void LoafBreakerEditor::timerCallback()
         it = asked.erase(it);
         root->menus.content.update();
     }
-    if (songView() && proc.tracksIfNew(tracksSerial, root->song.tr) && root->song.dragI < 0) root->song.repaint();
+    if (songView() && ! root->song.busy() && proc.tracksIfNew(tracksSerial, root->song.tr)) root->song.repaint();
     if (seqView()) {
         if (proc.seqIfNew(seqSerial, seq)) root->seqp.repaint();
         if (proc.patternsIfNew(patsSerial, pats)) root->seqp.repaint();

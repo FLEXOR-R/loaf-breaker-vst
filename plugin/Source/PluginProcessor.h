@@ -167,8 +167,8 @@ private:
     lb_track_t tracksBuf[8] {};
     uint32_t tracksSerial = 0, tracksAge = 0;
     juce::SpinLock trackLock;
-    lb_track_t trackOut {};
-    bool trackPending = false;
+    lb_track_t trackOut[8] {};
+    uint8_t trackPending = 0;            // (one bit a track: several written in a row, each kept)
     // the menus' service (on the audio thread, never waiting: try-locks)
     lb_part_t partsBuf[MAX_PARTS] {};
     int nParts = 0;

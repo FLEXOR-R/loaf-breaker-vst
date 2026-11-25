@@ -142,7 +142,12 @@ void LoafBreakerProcessor::drainCommands()
 {
     {                                    // (a track written whole, from the arranger)
         const juce::SpinLock::ScopedTryLockType tl(trackLock);
-        if (tl.isLocked() && trackPending) { core.trackWrite(&trackOut); trackPending = false; tracksAge = 99; }
+        if (tl.isLocked() && trackPending) {
+            for (int t = 0; t < 8; ++t)
+                if (trackPending >> t & 1) core.trackWrite(&trackOut[t]);
+            trackPending = 0;
+            tracksAge = 99;
+        }
     }
     const auto scope = cmdFifo.read(cmdFifo.getNumReady());
     auto run = [this](const CmdItem& it) {
@@ -594,8 +599,9 @@ bool LoafBreakerProcessor::tracksIfNew(uint32_t& serial, std::vector<lb_track_t>
 void LoafBreakerProcessor::trackWrite(const lb_track_t& t)
 {
     const juce::SpinLock::ScopedLockType sl(trackLock);
-    trackOut = t;
-    trackPending = true;
+    const int i = juce::jlimit(0, 7, t.track);
+    trackOut[i] = t;
+    trackPending = (uint8_t) (trackPending | 1 << i);
 }
 
 bool LoafBreakerProcessor::seqIfNew(uint32_t& serial, lb_seq_t& out)

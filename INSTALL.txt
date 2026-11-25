@@ -36,6 +36,12 @@ LE MORCEAU (SONG > TRACKS)
   deplacer. Molette : ses boucles. Double-clic : son pattern. + : ajouter un pattern, un DROP ou un trou. > : jouer la
   track. LOOP / STOP / HOLD : ce qu'elle fait a la fin. Dessous : le pattern, les boucles, le break, le kick de
   l'element choisi, le deplacer, le dupliquer, le supprimer.
+- Comme un piano roll : la palette au-dessus des tracks (< P1-16 > pour changer de groupe, DROP, GAP) se glisse
+  ou il faut, entre deux blocs ; un clic dessus l'ajoute apres le bloc choisi.
+- Le bord droit d'un bloc s'etire : ses boucles (x1 a x16). Un bloc se glisse entre deux autres, ou sur une autre
+  track ; avec CTRL (ou ALT) c'est une copie.
+- Clic droit sur un bloc : inserer avant / apres, remplacer, boucles, dupliquer, supprimer. Sur le vide d'une track :
+  ajouter a la fin.
 
 LES BREAKS
 - Clic sur le nom du break (en haut) : tous les breaks, par categorie comme sur le site (FLEXOR, CYBERWORM AMENS,

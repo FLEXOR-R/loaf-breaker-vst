@@ -104,7 +104,12 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   The arranger (FLEXOR: "penser la VST comme un mini DAW"): SONG › TRACKS shows SongPanel above the menus: the 8 tracks
   on a timeline, each item a block as long as it plays (loops x the pattern's bars; a drop its build), drag to move,
   wheel its loops, double click its pattern, + to add (a pattern, DROP, GAP), > plays the track, its END (LOOP STOP
-  HOLD), the item's inspector (pattern, loops, break, kick, << >>, duplicate, delete). lbcore lb_track / lb_track_write
+  HOLD), the item's inspector (pattern, loops, break, kick, << >>, duplicate, delete). As a piano roll (25 Nov 2026,
+  FLEXOR: "gérer les patterns ici comme dans un piano roll ... les étendre, mettre entre d'autres"): a block's right
+  edge stretched (its loops, 1..16), dragged between two others or onto another track (CTRL / ALT a copy; a hot
+  marker where it lands), the palette above the tracks (a group of 16, DROP, GAP) dragged in place (a click: after the
+  block picked), a right click to insert before / after, replace, loops, duplicate, delete; the lanes as tall as the
+  room (laneH); the processor's mailbox a track each (trackOut[8], trackPending bits: a move writes two). lbcore lb_track / lb_track_write
   (the firmware's edx_track / edx_track_write: each item checked) / lb_track_play; the processor reads the tracks on the
   audio thread while shown (tracksWanted) and writes one through a mailbox (trackLock).
   Full screen (FLEXOR: "un mode fullscreen et borderless fullscreen"): MENU › Affichage, F11 / SHIFT+F11, ESC back
