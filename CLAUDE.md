@@ -128,6 +128,12 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   whole in a column, MIX / LEVELS / MACRO as faders, MORE's KNOBS as round knobs; an effect's page (a kick's FX1 / FX2,
   EFFECTS' slots) the effect first (lb_fx_list: the effects PRESETS goes through; picked by PRESETS turned); the FM-1's
   spare K3 PRESET hidden on the layers' FX. A firmware fix found on the way (0.9.78 TEST, page_say's 24 bytes).
+  Then (FLEXOR: "pourquoi pas encore fait"): an EQ's bands (LOW MID HIGH in dB: the kick's EQ BANDS, an EQ of the
+  chain) a curve with its three points dragged (gain up / down, frequency sideways: the nearest values of LOW / MID /
+  HIGH and LO FREQ / MID FREQ / HI FREQ, wherever their cards are; MID Q and LEVEL read), its values under it; DIRT's
+  picture D+ TYPE's curve big, bent by DRIVE; PATTERN's lanes as tall as the room (SeqPanel rowH scaled), the break's
+  steps in the RGB colours; SONG's arranger in cards, each pattern block its group's colour (P1-16 red .. 49-64 blue)
+  and its kick, snare and hat drawn small (lb_patterns, fetched while SONG shows).
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

@@ -4,6 +4,7 @@
 #include <set>
 #include <optional>
 #include <tuple>
+#include <array>
 
 using LBE = LoafBreakerEditor;
 static constexpr int W = 1440, H = 900;
@@ -395,6 +396,7 @@ struct WavePanel : Part
     }
 };
 
+static std::optional<float> iconAt(const juce::String& v, float u);
 // ------------------------------------------------------------------------------------ the sound, drawn big ---
 // (FLEXOR, 25 Nov 2026: "dans le menu kick un vrai visuel sur le kick, une vraie waveform"): the kick (or the drum) as
 // the FM-1's engine plays it (lb_pic: its kick_wave and kick_rgb), the view zoomed on the tab's part of it (ATTACK its
@@ -488,6 +490,42 @@ struct SoundHero : Part
             g.setColour(sk.dim.withAlpha(0.6f));
             g.setFont(ui::label(10.0f));
             g.drawText("...", juce::Rectangle<float>(X0, CY - 20, WW, 40), juce::Justification::centred);
+        }
+        if (what == 0 && tabName() == "DIRT") {  // D+ TYPE, big: the curve the kick goes through (its DRIVE bending it)
+            juce::String type;
+            float drive = 0.0f;
+            for (auto& pp : ed.parts.parts)
+                for (int k = 0; k < 4; ++k) {
+                    if (juce::String(pp.part) == "DISTO +" && juce::String(pp.kname[k]) == "TYPE") type = pp.kval[k];
+                    if (juce::String(pp.part) == "DISTO +" && juce::String(pp.kname[k]) == "DRIVE") drive = juce::String(pp.kval[k]).getFloatValue();
+                }
+            if (type.isNotEmpty() && iconAt(type, 0.5f)) {
+                juce::Rectangle<float> b(SW - 182.0f, 30.0f, 168.0f, 168.0f);
+                g.setColour(sk.bg.withAlpha(0.88f));
+                g.fillRoundedRectangle(b, 4.0f);
+                g.setColour(sk.line);
+                g.drawRoundedRectangle(b, 4.0f, 1.0f);
+                g.setColour(sk.line.withAlpha(0.6f));
+                g.drawLine(b.getCentreX(), b.getY() + 6, b.getCentreX(), b.getBottom() - 6, 1.0f);
+                g.drawLine(b.getX() + 6, b.getCentreY(), b.getRight() - 6, b.getCentreY(), 1.0f);
+                g.drawLine(b.getX() + 10, b.getBottom() - 10, b.getRight() - 10, b.getY() + 10, 1.0f);
+                const float k = 1.0f + drive / 50.0f * 0.6f;   // (DRIVE -50 .. +50: the curve less or more pushed)
+                juce::Path c;
+                for (int i = 0; i <= 80; ++i) {
+                    const float x = -1.0f + 2.0f * (float) i / 80.0f;
+                    const float u = juce::jlimit(0.0f, 1.0f, (x * k + 1.0f) * 0.5f);
+                    const float y = juce::jlimit(-1.0f, 1.0f, iconAt(type, u).value_or(0.0f));
+                    const float px = b.getX() + 10.0f + (float) i / 80.0f * (b.getWidth() - 20.0f), py = b.getCentreY() - y * (b.getHeight() * 0.5f - 10.0f);
+                    if (i == 0) c.startNewSubPath(px, py); else c.lineTo(px, py);
+                }
+                g.setColour(sk.hot);
+                g.strokePath(c, juce::PathStrokeType(2.0f));
+                g.setFont(ui::labelBold(9.0f));
+                g.drawText("D+ TYPE  " + type, b.reduced(8.0f, 4.0f), juce::Justification::topLeft);
+                g.setColour(sk.dim);
+                g.setFont(ui::label(7.5f));
+                g.drawText("ENTREE  >  SORTIE", b.reduced(8.0f, 4.0f), juce::Justification::bottomRight);
+            }
         }
         if (what == 0 && tabName() == "TAIL") {  // the END, where it cuts
             const float e = endMs();
@@ -733,7 +771,40 @@ struct MenuContent : Part
         bool listed = false;             // (a part of one list: its values listed whole, PRESET)
         bool fxPick = false;             // (an effect's page: the effect, picked by PRESETS)
     };
-    struct Card { juce::String title, sub; juce::Colour chip; juce::Rectangle<float> r; bool live = false, faders = false, rings = false; std::vector<Param> ps; };
+    struct Card { juce::String title, sub; juce::Colour chip; juce::Rectangle<float> r; bool live = false, faders = false, rings = false, eq = false; std::vector<Param> ps; };
+    // an EQ's bands (the kick's EQ BANDS, an EQ in the chain): its curve, its three points dragged
+    static bool eqFor(const Card& c)
+    {
+        int n = 0;
+        for (auto& q : c.ps)
+            if ((q.name == "LOW" || q.name == "MID" || q.name == "HIGH") && q.val.containsIgnoreCase("DB")) n++;
+        return n == 3;
+    }
+    static float parseHz(const juce::String& v) { const auto t = v.toUpperCase(); return t.getFloatValue() * (t.contains("KHZ") ? 1000.0f : 1.0f); }
+    const Param* findP(const juce::String& name) const { for (auto& c : cards) for (auto& q : c.ps) if (q.name == name) return &q; return nullptr; }
+    Param* findPm(const juce::String& name) { for (auto& c : cards) for (auto& q : c.ps) if (q.name == name) return &q; return nullptr; }
+    struct EqPt { float hz, db; juce::String gain, freq; };
+    std::array<EqPt, 3> eqPoints() const
+    {
+        auto v = [&](const juce::String& n, float d) { auto* q = findP(n); return q ? q->val.getFloatValue() : d; };
+        auto hz = [&](const juce::String& n, float d) { auto* q = findP(n); return q ? parseHz(q->val) : d; };
+        return { EqPt { hz("LO FREQ", 126.0f), v("LOW", 0), "LOW", "LO FREQ" }, EqPt { hz("MID FREQ", 999.0f), v("MID", 0), "MID", "MID FREQ" },
+                 EqPt { hz("HI FREQ", 5700.0f), v("HIGH", 0), "HIGH", "HI FREQ" } };
+    }
+    float eqGain(float hz) const
+    {
+        const auto p = eqPoints();
+        auto* qq = findP("MID Q");
+        const float q = qq ? juce::jmax(0.2f, qq->val.getFloatValue()) : 1.1f;
+        const float lo = p[0].db / (1.0f + std::pow(hz / p[0].hz, 2.0f)), hi = p[2].db / (1.0f + std::pow(p[2].hz / hz, 2.0f));
+        const float mid = p[1].db / (1.0f + std::pow(q * (hz / p[1].hz - p[1].hz / hz), 2.0f));
+        auto* lv = findP("LEVEL");
+        return lo + mid + hi + (lv && lv->val.containsIgnoreCase("DB") ? lv->val.getFloatValue() : 0.0f);
+    }
+    juce::Rectangle<float> eqArea(const Card& c) const { return { c.r.getX() + 14.0f, c.r.getY() + HEAD_H, c.r.getWidth() - 28.0f, c.r.getHeight() - HEAD_H - 44.0f }; }
+    static float eqX(juce::Rectangle<float> a, float hz) { return a.getX() + std::log(hz / 20.0f) / std::log(1000.0f) * a.getWidth(); }
+    static float eqY(juce::Rectangle<float> a, float db) { return a.getCentreY() - db / 15.0f * (a.getHeight() * 0.5f - 6.0f); }
+    int eqDrag = -1, eqCardI = -1;          // (by index: the cards may be laid out again while it is dragged)
     // the FM-1's four knobs (MORE › KNOBS): round, as on the machine
     static bool ringsFor(const Card& c)
     {
@@ -834,6 +905,7 @@ struct MenuContent : Part
             c.faders = fadersFor(c);
             c.rings = ringsFor(c);
             c.faders |= c.rings;                 // (laid out and dragged as faders: columns, up / down)
+            c.eq = eqFor(c);
             int shown = 0;
             for (auto& q : c.ps) shown += q.name.isNotEmpty();
             if (shown == 1 && c.ps.size() == 1 && c.ps[0].kind == menus::List && c.ps[0].n > 1 && c.ps[0].n <= 40)
@@ -885,6 +957,7 @@ struct MenuContent : Part
             for (int j = 0; j < ng; ++j) {
                 float h = HEAD_H + 10.0f;
                 if (cards[(size_t) grid[(size_t) j]].faders) h += 140.0f;
+                else if (cards[(size_t) grid[(size_t) j]].eq) h += 210.0f;
                 else for (auto& q : cards[(size_t) grid[(size_t) j]].ps) h += paramH(q);
                 need[(size_t) (j / cols)] = juce::jmax(need[(size_t) (j / cols)], h);
             }
@@ -911,6 +984,15 @@ struct MenuContent : Part
     }
     void layoutCard(Card& c)
     {
+        if (c.eq) {                              // the curve above; each setting a value under it, dragged sideways
+            const float n = (float) c.ps.size(), w = (c.r.getWidth() - 28.0f) / n, y = c.r.getBottom() - 40.0f;
+            for (size_t i = 0; i < c.ps.size(); ++i) {
+                auto& q = c.ps[i];
+                q.row = { c.r.getX() + 14.0f + (float) i * w, y, w - 6.0f, 32.0f };
+                q.ctl = q.row;
+            }
+            return;
+        }
         if (c.faders) {                          // each a column: its value above, its track, its name below
             const float n = (float) c.ps.size(), w = (c.r.getWidth() - 28.0f) / n;
             for (size_t i = 0; i < c.ps.size(); ++i) {
@@ -1003,7 +1085,7 @@ struct MenuContent : Part
             if (! listed && c.ps.size() == 1 && q.kind == menus::List && q.n > 1 && q.n <= 40) q.listed = true;
             relayout |= was != std::make_tuple(q.kind, q.tiles, q.listed, q.n);
         }
-        for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c));
+        for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c)) || c.eq != eqFor(c);
         if (relayout) { rebuild(); return; }
         repaint();
     }
@@ -1014,6 +1096,7 @@ struct MenuContent : Part
         for (int ci = 0; ci < (int) cards.size(); ++ci) {
             auto& c = cards[(size_t) ci];
             ui::card(g, c.r, c.title, c.sub, c.chip, c.live);
+            if (c.eq) drawEq(g, c);
             for (int pi = 0; pi < (int) c.ps.size(); ++pi) drawParam(g, c, c.ps[(size_t) pi], hoverCard == ci && hoverParam == pi);
         }
         if (auto* f = focus >= 0 ? nth(focus) : nullptr) {   // (the keyboard's setting: a frame)
@@ -1024,6 +1107,50 @@ struct MenuContent : Part
             g.setColour(sk.dim);
             g.setFont(ui::label(14.0f));
             g.drawText("RIEN A REGLER ICI", getLocalBounds(), juce::Justification::centred);
+        }
+    }
+    void drawEq(juce::Graphics& g, const Card& c)
+    {
+        const auto& sk = s();
+        const auto a = eqArea(c);
+        g.setColour(sk.bg.brighter(0.02f));
+        g.fillRoundedRectangle(a, 3.0f);
+        g.setFont(ui::label(7.5f));
+        for (float hz : { 50.0f, 100.0f, 200.0f, 500.0f, 1000.0f, 2000.0f, 5000.0f, 10000.0f }) {
+            const float x = eqX(a, hz);
+            g.setColour(sk.line.withAlpha(0.5f));
+            g.fillRect(x, a.getY(), 1.0f, a.getHeight());
+            g.setColour(sk.dim.withAlpha(0.6f));
+            g.drawText(hz >= 1000.0f ? juce::String((int) (hz / 1000.0f)) + "K" : juce::String((int) hz), (int) x + 2, (int) a.getBottom() - 12, 30, 11, juce::Justification::centredLeft);
+        }
+        for (float db : { -12.0f, -6.0f, 0.0f, 6.0f, 12.0f }) {
+            g.setColour(sk.line.withAlpha(db == 0.0f ? 0.9f : 0.4f));
+            g.fillRect(a.getX(), eqY(a, db), a.getWidth(), 1.0f);
+        }
+        juce::Path p, f;
+        for (int i = 0; i <= 200; ++i) {
+            const float hz = 20.0f * std::pow(1000.0f, (float) i / 200.0f), x = eqX(a, hz), y = juce::jlimit(a.getY(), a.getBottom(), eqY(a, eqGain(hz)));
+            if (i == 0) { p.startNewSubPath(x, y); f.startNewSubPath(x, eqY(a, 0.0f)); }
+            p.lineTo(x, y);
+            f.lineTo(x, y);
+        }
+        f.lineTo(a.getRight(), eqY(a, 0.0f));
+        f.closeSubPath();
+        g.setColour(sk.accent.withAlpha(0.12f));
+        g.fillPath(f);
+        g.setColour(sk.hot);
+        g.strokePath(p, juce::PathStrokeType(2.0f));
+        const auto pts = eqPoints();
+        static const char* N[3] = { "LOW", "MID", "HIGH" };
+        for (int i = 0; i < 3; ++i) {
+            const float x = eqX(a, pts[(size_t) i].hz), y = juce::jlimit(a.getY() + 7.0f, a.getBottom() - 7.0f, eqY(a, pts[(size_t) i].db));
+            g.setColour(sk.bg);
+            g.fillEllipse(x - 7.0f, y - 7.0f, 14.0f, 14.0f);
+            g.setColour(eqDrag == i && eqCardI >= 0 && eqCardI < (int) cards.size() && &cards[(size_t) eqCardI] == &c ? sk.white : sk.hot);
+            g.drawEllipse(x - 7.0f, y - 7.0f, 14.0f, 14.0f, 2.0f);
+            g.setColour(sk.ink);
+            g.setFont(ui::labelBold(8.0f));
+            g.drawText(N[i], (int) x - 20, (int) y - 22, 40, 12, juce::Justification::centred);
         }
     }
     juce::String optAt(const Param& q, int i) const
@@ -1070,6 +1197,23 @@ struct MenuContent : Part
             g.drawText("K" + juce::String(q.knob + 1), juce::Rectangle<float>(q.row.getX(), q.ctl.getBottom() + 2.0f, q.row.getWidth(), 14.0f), juce::Justification::centred);
             g.setColour(sk.ink);
             ui::fitText(g, q.name, juce::Rectangle<float>(q.row.getX(), q.ctl.getBottom() + 16.0f, q.row.getWidth(), 20.0f), ui::labelBold(11.0f));
+            return;
+        }
+        if (c.eq) {                              // under the curve: a value, its name above it, dragged sideways
+            const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
+            auto r = q.ctl;
+            g.setColour(sk.panel2);
+            g.fillRoundedRectangle(r, 2.5f);
+            g.setColour(sk.accent.withAlpha(hover || dragP == &q ? 0.4f : 0.22f));
+            if (q.centre >= 0) {
+                const float from = frac(q, unitsAt(q, q.centre));
+                g.fillRect(juce::Rectangle<float>(r.getX() + r.getWidth() * juce::jmin(from, t), r.getBottom() - 4.0f, r.getWidth() * std::abs(t - from), 4.0f));
+            } else
+                g.fillRect(r.withTop(r.getBottom() - 4.0f).withWidth(r.getWidth() * t));
+            g.setColour(sk.dim);
+            ui::fitText(g, q.name, r.withHeight(13.0f).reduced(5.0f, 0.0f), ui::label(7.5f), juce::Justification::centredLeft);
+            g.setColour(sk.ink);
+            ui::fitText(g, q.val, r.withTrimmedTop(11.0f).withTrimmedBottom(4.0f).reduced(5.0f, 0.0f), ui::value(14.0f), juce::Justification::centredLeft);
             return;
         }
         if (c.faders) {                          // a fader: filled from below, the layer's colour (SUB red ...)
@@ -1267,8 +1411,37 @@ struct MenuContent : Part
         if (q.kind == menus::Unknown) { ed.proc.setValue(q.part, q.knob, d); return; }
         go(q, q.cur + d);
     }
+    // the EQ's points: the value of the gain (up / down) and of the frequency (sideways) nearest where the point is put
+    void eqTo(const juce::String& name, float want, bool hz)
+    {
+        auto* q = findPm(name);
+        if (! q || q->kind == menus::Unknown || q->n < 2) return;
+        int best = q->cur;
+        float bd = 1e9f;
+        for (int i = 0; i < q->n; ++i) {
+            const auto v = optAt(*q, i);
+            const float x = hz ? std::log(juce::jmax(1.0f, parseHz(v))) : v.getFloatValue();
+            const float d = std::abs(x - (hz ? std::log(juce::jmax(1.0f, want)) : want));
+            if (d < bd) { bd = d; best = i; }
+        }
+        go(*q, best);
+    }
     void mouseDown(const juce::MouseEvent& e) override
     {
+        for (int ci = 0; ci < (int) cards.size(); ++ci)
+            if (auto& c = cards[(size_t) ci]; c.eq && eqArea(c).contains(e.position)) {
+                const auto a = eqArea(c);
+                const auto pts = eqPoints();
+                eqDrag = -1;
+                float bd = 30.0f;
+                for (int i = 0; i < 3; ++i) {
+                    const float d = e.position.getDistanceFrom({ eqX(a, pts[(size_t) i].hz), eqY(a, pts[(size_t) i].db) });
+                    if (d < bd) { bd = d; eqDrag = i; }
+                }
+                eqCardI = ci;
+                repaint();
+                return;
+            }
         auto* q = at(hit(e.position));
         if (! q || ! q->ctl.contains(e.position)) return;
         if (e.mods.isPopupMenu() && q->n > 1) { listMenu(*q); return; }
@@ -1299,6 +1472,16 @@ struct MenuContent : Part
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if (eqDrag >= 0 && eqCardI >= 0 && eqCardI < (int) cards.size()) {
+            const auto a = eqArea(cards[(size_t) eqCardI]);
+            const auto pts = eqPoints();
+            const float db = juce::jlimit(-12.0f, 12.0f, (a.getCentreY() - e.position.y) / (a.getHeight() * 0.5f - 6.0f) * 15.0f);
+            const float hz = 20.0f * std::pow(1000.0f, juce::jlimit(0.0f, 1.0f, (e.position.x - a.getX()) / a.getWidth()));
+            eqTo(pts[(size_t) eqDrag].gain, db, false);
+            eqTo(pts[(size_t) eqDrag].freq, hz, true);
+            repaint();
+            return;
+        }
         if (! dragP) return;
         const float dx = dragV ? (float) -e.getDistanceFromDragStartY()
                                : (float) e.getDistanceFromDragStartX() - (float) e.getDistanceFromDragStartY() * 0.5f;
@@ -1306,7 +1489,7 @@ struct MenuContent : Part
         const int want = juce::jlimit(0, dragP->n - 1, indexAtUnits(*dragP, dragU + dx / (pxStep * slow)));
         if (want != dragSent) { go(*dragP, want); dragSent = want; }
     }
-    void mouseUp(const juce::MouseEvent&) override { dragP = nullptr; repaint(); }
+    void mouseUp(const juce::MouseEvent&) override { dragP = nullptr; eqDrag = -1; eqCardI = -1; repaint(); }
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
         auto* q = at(hit(e.position));
@@ -1376,7 +1559,13 @@ struct SeqPanel : Part
     static const char* laneName(int r) { static const char* N[5] = { "BREAK", "KICK", "SNARE", "HAT", "CLAP" }; return N[r]; }
     juce::Colour laneCol(int r) const { return r == selRow ? s().hot : s().accent; }   // (the skin's, as the FM-1's SEQ)
     juce::Rectangle<float> gridArea() const { return { HEAD_W + 8.0f, BANK_H + RULER_H + 8.0f, getWidth() - HEAD_W - 16.0f, rowsH() }; }
-    float rowH(int r) const { return r == 0 ? 84.0f : r == 1 ? 60.0f : 52.0f; }
+    // the lanes as tall as the room allows (FLEXOR: the sequencer on the whole height), the inspector 120 px under them
+    float rowH(int r) const
+    {
+        const float base = r == 0 ? 84.0f : r == 1 ? 60.0f : 52.0f;
+        const float avail = (float) getHeight() - (BANK_H + RULER_H + 8.0f) - 126.0f - 5 * 4.0f;
+        return base * juce::jlimit(1.0f, 2.2f, avail / 300.0f);
+    }
     float rowsH() const { float h = 0; for (int r = 0; r < 5; ++r) h += rowH(r) + 4.0f; return h; }
     float rowY(int r) const { float y = gridArea().getY(); for (int i = 0; i < r; ++i) y += rowH(i) + 4.0f; return y; }
     float colW() const { return gridArea().getWidth() / 64.0f; }
@@ -1539,7 +1728,7 @@ struct SeqPanel : Part
                 if (rev) t = 1.0f - t;
                 const int col = juce::jlimit(0, n - 1, (int) ((a0 + (a1 - a0) * t) * n));
                 const float pk = w.cols[(size_t) (4 * col)];
-                g.setColour((now ? sk.bg : b[0] == 1 ? sk.dim : sk.accent).withMultipliedAlpha(fade));
+                g.setColour((now ? sk.bg : b[0] == 1 ? ui::rgb(w.cols[(size_t) (4 * col + 1)], w.cols[(size_t) (4 * col + 2)], w.cols[(size_t) (4 * col + 3)], 0.4f) : ui::rgb(w.cols[(size_t) (4 * col + 1)], w.cols[(size_t) (4 * col + 2)], w.cols[(size_t) (4 * col + 3)])).withMultipliedAlpha(fade));
                 g.fillRect(c.getX() + x, mid - pk * half, 1.5f, juce::jmax(1.0f, 2.0f * pk * half));
             }
         }
@@ -1866,18 +2055,22 @@ struct SongPanel : Part
     void paint(juce::Graphics& g) override
     {
         const auto& sk = s();
-        ui::panel(g, getLocalBounds().toFloat().reduced(1.0f));
+        g.setColour(sk.bg.brighter(0.02f));
+        g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
+        g.setColour(sk.line);
+        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
         g.setColour(sk.dim);
-        g.setFont(ui::label(11.5f));
-        g.drawText("TRACKS  -  clic: choisir, glisser: deplacer, double-clic: le pattern, + : ajouter, > : jouer la track", 12, 4, 900, 20, juce::Justification::centredLeft);
+        g.setFont(ui::label(8.5f).withExtraKerningFactor(0.14f));
+        g.drawText("TRACKS  /  CLIC : CHOISIR   GLISSER : DEPLACER   DOUBLE-CLIC : LE PATTERN   + : AJOUTER   > : JOUER", 14, 4, 1000, 20, juce::Justification::centredLeft);
         if (tr.size() < 8) return;
         const float pb = pxBar();
         for (int t = 0; t < 8; ++t) {
             const auto& k = tr[(size_t) t];
             auto l = lane(t);
             const bool cur = k.cur == t;
-            g.setColour(cur ? sk.panel2.brighter(0.06f) : sk.panel);
-            g.fillRect(l);
+            g.setColour(cur ? sk.panel2.brighter(0.04f) : sk.panel);
+            g.fillRoundedRectangle(l, 4.0f);
+            if (cur) { g.setColour(sk.ink); g.fillRoundedRectangle(l.withWidth(3.0f), 1.5f); }
             for (int b = 0; b * pb < l.getWidth() - HEAD; b += 4) {   // (the bars: every 4 a line)
                 g.setColour(sk.line.withAlpha(b % 16 ? 0.35f : 0.8f));
                 g.fillRect(l.getX() + HEAD + b * pb, l.getY(), 1.0f, l.getHeight());
@@ -1904,16 +2097,39 @@ struct SongPanel : Part
         const auto& k = tr[(size_t) t];
         const int v = k.it[i];
         const bool sel = t == selT && i == selI, now = k.on && k.cur == t && k.pos == i;
-        g.setColour(v == 0xFE ? sk.hot.withAlpha(0.85f) : v == 0xFD ? sk.panel2 : sk.accent.withAlpha(0.8f));
-        g.fillRect(r);
-        if (now) { g.setColour(sk.white); g.drawRect(r.expanded(1.0f), 2.0f); }
-        if (sel) { g.setColour(sk.hot); g.drawRect(r.expanded(2.0f), 2.0f); }
-        g.setColour(v == 0xFD ? sk.dim : sk.bg);
-        ui::fitText(g, label(k, i), r.reduced(4.0f, 0.0f).withTrimmedBottom(r.getHeight() * 0.35f), ui::labelBold(13.0f), juce::Justification::centredLeft);
+        // a pattern: its group's colour on its left (P1-16 red, 17-32 amber, 33-48 green, 49-64 blue), its kicks and
+        // snares drawn small, bar after bar; a drop bright; a gap hatched
+        static const char* GRP[4] = { "SUB", "PUNCH", "GRIT", "CLICK" };
+        const bool pat = v >= 1 && v <= 64;
+        const auto gc = pat ? ui::layer(GRP[(v - 1) / 16]) : sk.hot;
+        g.setColour(v == 0xFE ? sk.hot.withAlpha(0.85f) : v == 0xFD ? sk.panel2 : sk.panel2.brighter(0.1f));
+        g.fillRoundedRectangle(r, 3.0f);
+        if (v == 0xFD) ui::hatch(g, r);
+        if (pat) {
+            g.setColour(gc);
+            g.fillRoundedRectangle(r.withWidth(4.0f), 1.5f);
+            const uint8_t* pp = ed.pats + (size_t) (v - 1) * 40;
+            const float pb = pxBar(), stepW = pb / 16.0f;
+            const int nb = (int) (r.getWidth() / juce::jmax(1.0f, pb));
+            for (int b = 0; b < nb && stepW > 0.8f; ++b)
+                for (int d = 0; d < 3; ++d) {            // (KICK, SNARE, HAT: three rows of ticks)
+                    const int bars = juce::jmax(1, (int) pp[d]);
+                    const uint16_t m = (uint16_t) (pp[4 + d * 8 + (b % bars) * 2] | pp[4 + d * 8 + (b % bars) * 2 + 1] << 8);
+                    for (int st = 0; st < 16; ++st)
+                        if (m >> st & 1u) {
+                            g.setColour((d == 0 ? gc : sk.ink).withAlpha(d == 0 ? 0.9f : 0.45f));
+                            g.fillRect(r.getX() + 6.0f + b * pb + st * stepW, r.getBottom() - 5.0f - d * 4.0f, juce::jmax(1.0f, stepW - 0.5f), 2.5f);
+                        }
+                }
+        }
+        if (now) { g.setColour(sk.white); g.drawRoundedRectangle(r.expanded(1.0f), 3.0f, 2.0f); }
+        if (sel) { g.setColour(sk.hot); g.drawRoundedRectangle(r.expanded(2.0f), 3.0f, 2.0f); }
+        g.setColour(v == 0xFD ? sk.dim : v == 0xFE ? sk.bg : sk.ink);
+        ui::fitText(g, label(k, i), r.reduced(8.0f, 0.0f).withTrimmedBottom(r.getHeight() * 0.42f), ui::labelBold(11.0f), juce::Justification::centredLeft);
         juce::String sub;
         if (v != 0xFE && v != 0xFD && k.tb[i]) sub << "B" << (int) k.tb[i] << " ";
         if (k.tk[i]) sub << "K" << (int) k.tk[i];
-        if (sub.isNotEmpty()) ui::fitText(g, sub, r.reduced(4.0f, 0.0f).withTrimmedTop(r.getHeight() * 0.6f), ui::label(9.5f), juce::Justification::centredLeft);
+        if (sub.isNotEmpty()) { g.setColour(sk.dim); ui::fitText(g, sub, r.reduced(8.0f, 0.0f).withTrimmedRight(r.getWidth() * 0.4f).withTrimmedTop(r.getHeight() * 0.5f).withTrimmedBottom(8.0f), ui::label(8.0f), juce::Justification::centredLeft); }
     }
     // the item picked: its pattern, loops, break, kick; out, a copy, its kind
     std::vector<std::pair<juce::Rectangle<float>, int>> ib;
@@ -2483,7 +2699,8 @@ void LoafBreakerEditor::timerCallback()
     if (seqView()) {
         if (proc.seqIfNew(seqSerial, seq)) root->seqp.repaint();
         if (proc.patternsIfNew(patsSerial, pats)) root->seqp.repaint();
-    }
+    } else if (songView() && proc.patternsIfNew(patsSerial, pats))
+        root->song.repaint();                    // (the blocks' pictures)
     float l, r;
     proc.meters(l, r);
     root->header.meters(l, r);
