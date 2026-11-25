@@ -1590,6 +1590,8 @@ struct Machine : Part
         g.setFont(ui::label(11.0f));
         g.drawText("APERCU FM-1", 6, 1, getWidth() - 30, 20, juce::Justification::centredLeft);
         g.drawText("x", getWidth() - 20, 1, 16, 20, juce::Justification::centred);
+        g.drawRect(getWidth() - 39, 6, 11, 9, 1);   // (its own window)
+        g.fillRect(getWidth() - 39, 6, 11, 3);
         auto r = getLocalBounds().toFloat().withTrimmedTop(22.0f).reduced(1.0f);
         g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
         g.drawImage(screen, r, juce::RectanglePlacement::centred);
@@ -1597,6 +1599,7 @@ struct Machine : Part
     void mouseDown(const juce::MouseEvent& e) override
     {
         if (e.y < 22 && e.x > getWidth() - 22) { ed.toggleMachine(); return; }
+        if (e.y < 22 && e.x > getWidth() - 44) { ed.machineSeparate(true); return; }
         dragger.startDraggingComponent(this, e);
     }
     void mouseDrag(const juce::MouseEvent& e) override
@@ -1674,6 +1677,49 @@ struct Pads : Part
     void mouseUp(const juce::MouseEvent&) override { press(held, false); held = -1; repaint(); }
 };
 
+// ------------------------------------------------------------------------- the FM-1's screen, its own window ---
+// (FLEXOR: "pouvoir aussi mettre l'aperçu fm 1 dans une fenêtre séparée"): a window of the desktop, moved and sized
+// as any (on another screen too), its place kept (settings "machineWin"); the keys go on to the editor's
+struct MachineWindow : juce::DocumentWindow
+{
+    struct View : Part
+    {
+        View(LBE& e, juce::Image& im) : Part(e), screen(im) { setWantsKeyboardFocus(true); }
+        juce::Image& screen;
+        void paint(juce::Graphics& g) override
+        {
+            g.fillAll(juce::Colours::black);
+            g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);   // (the pixels sharp)
+            g.drawImage(screen, getLocalBounds().toFloat(), juce::RectanglePlacement::centred);
+        }
+        bool keyPressed(const juce::KeyPress& k) override { return ed.keyPressed(k); }
+        bool keyStateChanged(bool d) override { return ed.keyStateChanged(d); }
+    };
+    MachineWindow(LBE& e, juce::Image& im) : juce::DocumentWindow("LOAF BREAKER - FM-1", juce::Colours::black,
+                                                                   juce::DocumentWindow::closeButton), ed(e), view(e, im)
+    {
+        setUsingNativeTitleBar(true);
+        setContentNonOwned(&view, false);
+        setResizable(true, false);
+        setResizeLimits(240, 240, 2400, 2400);
+        if (auto* c = getConstrainer()) c->setFixedAspectRatio(1.0);
+        auto b = juce::Rectangle<int>::fromString(ui::settings().getUserSettings()->getValue("machineWin"));
+        const auto& ds = juce::Desktop::getInstance().getDisplays();
+        if (b.getWidth() < 200 || ds.getDisplayForRect(b) == nullptr) {
+            b = { 0, 0, 480, 480 };
+            if (auto* d = ds.getPrimaryDisplay()) b = b.withPosition(d->userArea.getRight() - 520, d->userArea.getY() + 60);
+        }
+        setBounds(b);
+        setVisible(true);
+    }
+    LBE& ed;
+    View view;
+    void closeButtonPressed() override { juce::MessageManager::callAsync([s = juce::Component::SafePointer<LBE>(&ed)] { if (s) s->toggleMachine(); }); }
+    void moved() override { DocumentWindow::moved(); keep(); }
+    void resized() override { DocumentWindow::resized(); keep(); }
+    void keep() { if (isOnDesktop() && getWidth() > 100) ui::settings().getUserSettings()->setValue("machineWin", getBounds().toString()); }
+};
+
 // ---------------------------------------------------------------------------------------------------- root ---
 struct LoafBreakerEditor::Root : Part
 {
@@ -1712,7 +1758,7 @@ struct LoafBreakerEditor::Root : Part
         song.setBounds(8, 172, W - 16, 380);
         menus.setBounds(8, songShown ? 558 : 282, W - 16, songShown ? 128 : 404);
         seqp.setBounds(8, 172, W - 16, 514);
-        machine.setVisible(ed.showMachine);
+        machine.setVisible(ed.showMachine && ! ed.machineSep);
         machine.toFront(false);
         pads.setBounds(8, 690, W - 16, 202);
     }
@@ -1728,6 +1774,7 @@ struct LoafBreakerEditor::Root : Part
 LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEditor(&p), proc(p)
 {
     showMachine = ui::settings().getUserSettings()->getBoolValue("machine", true);
+    machineSep = ui::settings().getUserSettings()->getBoolValue("machineSep", false);
     root = std::make_unique<Root>(*this);
     addAndMakeVisible(*root);
     setWantsKeyboardFocus(true);
@@ -1754,7 +1801,7 @@ void LoafBreakerEditor::openManager()
     o.launchAsync();
 }
 
-LoafBreakerEditor::~LoafBreakerEditor() { stopTimer(); }
+LoafBreakerEditor::~LoafBreakerEditor() { stopTimer(); machineWin.reset(); }
 
 void LoafBreakerEditor::resized()
 {
@@ -1813,7 +1860,11 @@ void LoafBreakerEditor::timerCallback()
     float l, r;
     proc.meters(l, r);
     root->header.meters(l, r);
-    if (showMachine) root->machine.update();
+    if (showMachine) {
+        root->machine.update();
+        if (machineSep && ! machineWin) machineShow();
+        if (machineWin) machineWin->view.repaint();
+    }
 }
 
 juce::String LoafBreakerEditor::pageKey() const
@@ -2103,6 +2154,25 @@ void LoafBreakerEditor::toggleMachine()
 {
     showMachine = ! showMachine;
     ui::settings().getUserSettings()->setValue("machine", showMachine);
+    machineShow();
+}
+
+// the FM-1's screen in the editor (a floating box) or in a window of its own
+void LoafBreakerEditor::machineSeparate(bool sep)
+{
+    machineSep = sep;
+    showMachine = true;
+    ui::settings().getUserSettings()->setValue("machine", true);
+    ui::settings().getUserSettings()->setValue("machineSep", sep);
+    machineShow();
+}
+
+void LoafBreakerEditor::machineShow()
+{
+    if (showMachine && machineSep) {
+        if (! machineWin) machineWin = std::make_unique<MachineWindow>(*this, root->machine.screen);
+    } else
+        machineWin.reset();
     root->resized();
     root->repaint();
 }
@@ -2161,7 +2231,14 @@ void LoafBreakerEditor::menu()
     mm.addSeparator();
     mm.addSubMenu("Skin", skins);
     mm.addItem(1, "Clavier (touches)...");
-    mm.addItem(2, "Apercu du FM-1 (fenetre flottante)", true, showMachine);
+    {
+        juce::PopupMenu ap;
+        ap.addItem(2, "Afficher", true, showMachine);
+        ap.addSeparator();
+        ap.addItem(53, "Dans la fenetre (cadre flottant)", true, showMachine && ! machineSep);
+        ap.addItem(54, "Dans une fenetre separee", true, showMachine && machineSep);
+        mm.addSubMenu("Apercu du FM-1", ap);
+    }
     {
         const bool standalone = proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
         juce::PopupMenu sm;
@@ -2185,6 +2262,7 @@ void LoafBreakerEditor::menu()
         if (r == 2) { self->toggleMachine(); return; }
         if (r == 3) { self->openManager(); return; }
         if (r >= 50 && r <= 52) { self->screenMode(r - 50); return; }
+        if (r == 53 || r == 54) { self->machineSeparate(r == 54); return; }
         if (r == 205) { self->openManager(); return; }
         auto& p = self->proc;
         auto progress = [self](int pct, const juce::String& t) { if (self) self->toast(pct >= 0 && pct < 100 ? t + " " + juce::String(pct) + "%" : t); };

@@ -36,6 +36,10 @@ public:
     bool showMachine = true;
     void menu();
     void toggleMachine();
+    void machineSeparate(bool separate);         // the FM-1's screen in a window of its own
+    void machineShow();
+    bool machineSep = false;
+    std::unique_ptr<struct MachineWindow> machineWin;
     void persoEditor();
     void openManager();
     void breakMenu();                            // the breaks by category, the playlist

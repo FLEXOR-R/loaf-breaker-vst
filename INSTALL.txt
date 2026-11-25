@@ -21,7 +21,7 @@ LE CLAVIER (tout se change dans MENU > Clavier, ou CTRL+K)
 - F1 a F8 : LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM. TAB / SHIFT+TAB : l'onglet suivant, precedent.
 - ESPACE : PLAY. CTRL+S : sauver. CTRL+Z : annuler (pattern). CTRL+C / CTRL+V : copier, coller le pattern.
 - CTRL+B : la liste des breaks. C / V : break precedent, suivant (de la playlist). CTRL+P : la playlist.
-- CTRL+G : la gestion. F9 : l'apercu du FM-1. N / M : tempo -1 / +1.
+- CTRL+G : la gestion. F9 : l'apercu du FM-1 (MENU › Apercu du FM-1 : dans la fenetre ou dans une fenetre separee). N / M : tempo -1 / +1.
 - Dans le sequenceur (PATTERN) : fleches pour se deplacer (SHIFT : un temps, CTRL : une mesure, DEBUT / FIN),
   ENTREE pose ou enleve le pas, SUPPR l'enleve, ALT+HAUT/BAS les HITS (le break : sa slice), SHIFT+HAUT/BAS la note du
   kick (le break : son pitch ; les autres : la chance), CTRL+HAUT/BAS la chance (le break : ses repetitions),

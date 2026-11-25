@@ -60,7 +60,11 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   knob turned until it stops or comes round), `lb_set` (part p's knob k, n values on, the part shown back), the whole
   state kept and put back around them (core/lbsnap.c: the library's writable memory, ELF's RW segment past RELRO, PE's
   writable sections; ~1-5 ms a setting, one a frame on the audio thread: the processor's serveMenus). The FM-1's screen
-  a floating window (moved by its bar, sized by its corner, kept: settings machineBox), MENU shows / hides it.
+  a floating window (moved by its bar, sized by its corner, kept: settings machineBox), MENU shows / hides it. Or a window of
+  its own (25 Nov 2026, FLEXOR: "dans une fenêtre séparée"): MENU › Aperçu du FM-1, or the box's window icon;
+  PluginEditor.cpp MachineWindow (a desktop window, native bar, square, its place kept: machineWin; settings machineSep;
+  its keys go to the editor's). The mouse wheel never changes a menu's value (FLEXOR: "pas de modification des
+  sliders avec la molette"); it scrolls the cards.
   The sequencer (FLEXOR: "il me faut un vrai séquenceur"): PATTERN's FULL / DRUMS tabs show SeqPanel: the 64 patterns,
   the break's 32 steps (each its slice's own waveform), KICK SN HH CP 16/32/64, click / drag to paint, the wheel (a
   break step's slice, a drum's HITS), the step's settings, the bar's and the lane's tools (lbcore `lb_seq`, `lb_step`:
