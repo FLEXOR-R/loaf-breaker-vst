@@ -867,6 +867,10 @@ static std::optional<float> iconAt(const juce::String& v, float u)
     if (v == "CLEAN") return env(2.2f) * std::sin(u * 40.0f);
     if (v == "SPLIT") return env(2.2f) * (u < 0.35f ? std::tanh(2.0f * std::sin(u * 40.0f)) : std::sin(u * 40.0f));
     if (v == "DIRTY") return env(2.2f) * clampf(std::sin(u * 40.0f) * (0.4f + u * 3.0f) * 3.0f);
+    if (v == "CHOP") {                   // (0.9.80: as CLASSIC, then a short curved fall at CHOP AT)
+        const float g = u < 0.45f ? 1.0f : juce::jmax(0.0f, 1.0f - (u - 0.45f) * 7.0f);
+        return env(2.2f) * std::tanh(1.8f * std::sin(u * 40.0f)) * g * g;
+    }
     if (v == "EXP") return env(4.0f) * 2.0f - 1.0f;
     if (v == "LINEAR") return 1.0f - 2.0f * u;
     if (v == "SNAP") return (u < 0.55f ? 1.0f - u * 0.25f : juce::jmax(0.0f, 0.86f - (u - 0.55f) * 6.0f)) * 2.0f - 1.0f;
