@@ -111,6 +111,14 @@ void lb_turn_hw(int role, int detents)
     if (role == 0)
         lb_hw_sel = 1u;
 }
+void lb_ctl_keys(int on)
+{
+    if (lb_ctl_slices == (uint8_t)(on != 0))
+        return;
+    lb_ctl_slices = (uint8_t)(on != 0);
+    for (int i = 0; i < 16; i++)          /* (what the keys held did on the page before: let go) */
+        brk_key(i, 0);
+}
 void lb_tempo(int detents)
 {
     char t[16];

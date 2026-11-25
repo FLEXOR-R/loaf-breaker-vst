@@ -80,6 +80,8 @@ JOUER LE VST AVEC LE FM-1 (MENU > Machine FM-1 > Jouer le VST avec le FM-1)
   les pads du VST). Le FM-1 se tait pendant ce temps, son ecran dit CONTROLLER.
 - Tout marche comme sur la machine : PLAY, SEL (tenu ou double appui), les combinaisons, les pages et leurs
   onglets, et SELECT change le tempo comme sur le FM-1 (dans la VST elle-meme, SELECT ne le change jamais).
+- Les touches blanches du FM-1 jouent les tranches partout, sequenceur compris (comme sur HOME) : les pas se posent
+  a la souris dans la VST.
 - Il faut LOAF BREAKER 0.9.79 ou plus sur le FM-1.
 - La latence vient surtout du tampon audio du PC : MENU > Machine FM-1 l'affiche. Dans la version autonome :
   Options > Audio, type "Windows Audio (Low Latency Mode)" ou "(Exclusive Mode)", tampon 128 (ou 64) ; dans

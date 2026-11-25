@@ -163,7 +163,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   tempo en mode contrôleur"; the VST's own tabs still never) / lb_master. Channel 16 from the DAW is the FM-1's while on (never notes for the
   core), applied only when its own port is not open (no doubles). Its state in the header (FM-1 ... / FM-1 *), its
   held keys lit on the pads (fm1Keys, fm1Buttons); gone 2.5 s: what it held let go. lbtest checks it through the DAW
-  (channel 16's first white key heard, channel 1's not); coretest the lights.
+  (channel 16's first white key heard, channel 1's not); coretest the lights. Its white keys play the slices on SEQ too,
+  as on HOME (FLEXOR: "ne pas commander les pas du séquenceur de la VST en mode controleur avec les 16 white keys":
+  lbcore lb_ctl_keys (ABI 16), the firmware's LB_BIG lb_ctl_slices, set by ctlServe while the FM-1 answers).
 - The keys' own settings (25 Nov 2026, FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic gauche
   dessus, sinon difficile de configurer en mode controleur"): a left click on a pad opens KeyPanel (a white key's
   LENGTH PITCH MODE DECAY, a black key's function's four knobs, LATCH among them: KIL X2 X4 TRI's since the firmware's

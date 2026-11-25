@@ -288,6 +288,7 @@ void LoafBreakerProcessor::ctlApply(uint32_t msg)
 void LoafBreakerProcessor::ctlServe()
 {
     if (! ctlWant.load()) {
+        if (ctlWas) core.ctlKeys(0);     // (the page's keys again)
         ctlWas = false;
         return;
     }
@@ -306,6 +307,8 @@ void LoafBreakerProcessor::ctlServe()
     if (alive && ctlState.load() != 2)   // (just come into CONTROLLER: it is dark, all its lights again)
         ctlFullT = 0.0;
     ctlState = alive ? 2 : 1;
+    core.ctlKeys(alive ? 1 : 0);         // (FLEXOR: "ne pas commander les pas du séquenceur ... avec les 16 white keys": the
+                                         // FM-1 playing it, its white keys the slices on SEQ too, as on HOME)
     if (! alive && (ctlKeys.load() | ctlBtns.load())) {   // (gone, unplugged: what it held let go)
         for (int k = 0; k < 27; ++k)
             if (ctlKeys.load() >> k & 1u) core.key(k, false, 0);

@@ -40,7 +40,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 15
+#define LB_ABI 16
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -57,6 +57,8 @@ LB_API void lb_turn(int role, int detents);     /* LB_SELECT .. LB_K4 */
 /* the FM-1's own encoder (the VST played from it, its CONTROLLER): its detents at once, as the FM-1 reads them, and
  * SELECT the tempo there as on the FM-1 (the firmware's lb_hw_sel) */
 LB_API void lb_turn_hw(int role, int detents);
+/* the FM-1 playing the VST (its CONTROLLER): its white keys the slices on SEQ too, as on HOME (1), or the page's (0) */
+LB_API void lb_ctl_keys(int on);
 LB_API void lb_tempo(int detents);              /* the tempo, 1 BPM a detent (SELECT never in the VST) */
 LB_API void lb_master(int v);                   /* 0..1023 */
 LB_API uint32_t lb_screen(uint16_t *rgb565);    /* the 240 x 240 screen copied; its change count */

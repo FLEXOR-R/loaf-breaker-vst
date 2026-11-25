@@ -130,6 +130,38 @@ int main(void)
             printf("     (no KIL key in this layout)\n");
         check(ok, "a key's settings read and turned (white key, KIL's LATCH)");
     }
+    {                                    /* the FM-1 playing the VST: SEQ's white keys the slices (lb_ctl_keys), heard */
+        static float lr[2 * 64];
+        lb_model_t m;
+        int k0 = lb_key_index(0, 2), t;
+        float pk[2] = {0.0f, 0.0f};
+        for (t = 0; t < 3; t++) {        /* (SEQ until PATTERN shows: SEQ again on its page goes HOME) */
+            lb_model(&m);
+            if (!strcmp(m.dom, "PATTERN")) break;
+            lb_button(LB_SEQ, 1); for (i = 0; i < 40; i++) lb_ms(i % 15 == 0);
+            lb_button(LB_SEQ, 0); for (i = 0; i < 200; i++) { lb_ms(i % 15 == 0); lb_audio(lr, 44); }
+        }
+        lb_model(&m);
+        for (t = 0; t < 2; t++) {
+            int r;
+            lb_ctl_keys(t);
+            for (r = 0; r < (t ? 1 : 2); r++) {   /* (the page's: twice, its step back as it was) */
+                lb_key(k0, 1, 100);
+                for (i = 0; i < 100; i++) {
+                    lb_ms(i % 15 == 0);
+                    lb_audio(lr, 44);
+                    for (int j = 0; j < 88; j++) { float a = lr[j] < 0 ? -lr[j] : lr[j]; if (a > pk[t]) pk[t] = a; }
+                }
+                lb_key(k0, 0, 0);
+                for (i = 0; i < 300; i++) { lb_ms(i % 15 == 0); lb_audio(lr, 44); }
+            }
+        }
+        lb_ctl_keys(0);
+        lb_button(LB_HOME, 1); for (i = 0; i < 40; i++) lb_ms(i % 15 == 0);
+        lb_button(LB_HOME, 0); for (i = 0; i < 100; i++) lb_ms(i % 15 == 0);
+        printf("     %s (%s, playing %d): key 3 held, the page's peak %.3f, the FM-1's %.3f\n", m.dom, m.part, m.playing, pk[0], pk[1]);
+        check(!strcmp(m.dom, "PATTERN") && pk[1] > 0.05f, "the FM-1's white keys the slices on SEQ (on a drum lane the page's are silent: steps)");
+    }
     {                                    /* the FM-1's SELECT (lb_turn_hw) the tempo on HOME, the VST's (lb_turn) never */
         lb_model_t m;
         float b0, b1, b2;
