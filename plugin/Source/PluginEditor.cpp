@@ -1763,8 +1763,9 @@ LoafBreakerEditor::~LoafBreakerEditor() { stopTimer(); }
 
 void LoafBreakerEditor::resized()
 {
-    const float s = (float) getWidth() / W;
-    root->setTransform(juce::AffineTransform::scale(s));
+    // the whole drawing scaled to fit, centred (a screen of another shape: bands of the skin's ground around it)
+    const float s = juce::jmin((float) getWidth() / W, (float) getHeight() / H);
+    root->setTransform(juce::AffineTransform::scale(s).translated(((float) getWidth() - W * s) * 0.5f, ((float) getHeight() - H * s) * 0.5f));
     root->setBounds(0, 0, W, H);
     root->resized();
 }
@@ -2055,6 +2056,54 @@ void LoafBreakerEditor::playlistEditor()
     o.launchAsync();
 }
 
+// full screen (FLEXOR: "un mode fullscreen et borderless fullscreen"). The Standalone: 1 the true full screen (the
+// whole monitor, the taskbar under it: kiosk mode), 2 borderless (a window without its bar, the monitor's size); ESC or
+// the same key again: back to the window as it was. In a DAW the plugin's window is the host's: the plugin grows to
+// the screen instead (its bar stays the host's)
+void LoafBreakerEditor::screenMode(int mode)
+{
+    auto* top = getTopLevelComponent();
+    auto* dw = findParentComponentOfClass<juce::DocumentWindow>();
+    const bool standalone = proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone && dw != nullptr;
+    if (mode == screen) mode = 0;            // (the same again: back)
+    auto& desk = juce::Desktop::getInstance();
+    const auto* disp = desk.getDisplays().getDisplayForRect(top->getScreenBounds());
+    if (! standalone) {                      // (a DAW's window: as big as the screen allows, or back)
+        if (mode && disp) {
+            windowBounds = getBounds();
+            const auto area = disp->userArea.reduced(10, 40);
+            const float s = juce::jmin((float) area.getWidth() / W, (float) area.getHeight() / H);
+            setSize((int) (W * s), (int) (H * s));
+        } else if (! windowBounds.isEmpty())
+            setSize(windowBounds.getWidth(), windowBounds.getHeight());
+        screen = mode;
+        toast(mode ? "AGRANDI (ECHAP: REVENIR)" : "FENETRE");
+        return;
+    }
+    if (screen == 0) {                       // (leaving the window: its place kept)
+        windowBounds = dw->getBounds();
+        titleH = dw->getTitleBarHeight();
+        nativeBar = dw->isUsingNativeTitleBar();
+    }
+    if (desk.getKioskModeComponent() != nullptr) desk.setKioskModeComponent(nullptr, false);
+    if (mode == 1) {
+        dw->setUsingNativeTitleBar(false);
+        dw->setTitleBarHeight(0);
+        desk.setKioskModeComponent(dw, false);
+    } else if (mode == 2 && disp) {
+        dw->setUsingNativeTitleBar(false);
+        dw->setTitleBarHeight(0);
+        dw->setBounds(disp->totalArea);
+    } else {
+        dw->setUsingNativeTitleBar(nativeBar);
+        dw->setTitleBarHeight(titleH > 0 ? titleH : 26);
+        if (! windowBounds.isEmpty()) dw->setBounds(windowBounds);
+    }
+    screen = mode;
+    toast(mode == 1 ? "PLEIN ECRAN (ECHAP: REVENIR)" : mode == 2 ? "PLEIN ECRAN SANS BORDURE (ECHAP: REVENIR)" : "FENETRE");
+    grabKeyboardFocus();
+}
+
 void LoafBreakerEditor::toggleMachine()
 {
     showMachine = ! showMachine;
@@ -2118,6 +2167,17 @@ void LoafBreakerEditor::menu()
     mm.addSubMenu("Skin", skins);
     mm.addItem(1, "Clavier (touches)...");
     mm.addItem(2, "Apercu du FM-1 (fenetre flottante)", true, showMachine);
+    {
+        const bool standalone = proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone;
+        juce::PopupMenu sm;
+        if (standalone) {
+            sm.addItem(51, "Plein ecran  (F11)", true, screen == 1);
+            sm.addItem(52, "Plein ecran sans bordure  (SHIFT+F11)", true, screen == 2);
+        } else
+            sm.addItem(51, "Agrandir a tout l'ecran  (F11)", true, screen != 0);
+        sm.addItem(50, "Fenetre  (ECHAP)", screen != 0, screen == 0);
+        mm.addSubMenu("Affichage", sm);
+    }
     mm.addSeparator();
     mm.addSubMenu("Machine FM-1", fm1);
     juce::Component::SafePointer<LoafBreakerEditor> self(this);
@@ -2129,6 +2189,7 @@ void LoafBreakerEditor::menu()
         if (r == 1) { self->keysEditor(); return; }
         if (r == 2) { self->toggleMachine(); return; }
         if (r == 3) { self->openManager(); return; }
+        if (r >= 50 && r <= 52) { self->screenMode(r - 50); return; }
         if (r == 205) { self->openManager(); return; }
         auto& p = self->proc;
         auto progress = [self](int pct, const juce::String& t) { if (self) self->toast(pct >= 0 && pct < 100 ? t + " " + juce::String(pct) + "%" : t); };
@@ -2172,6 +2233,7 @@ void LoafBreakerEditor::menu()
 // the computer's keyboard: KeyMap's actions (turns and buttons on a press; slices, pads and SEL held)
 bool LoafBreakerEditor::keyPressed(const juce::KeyPress& k)
 {
+    if (k.getKeyCode() == juce::KeyPress::escapeKey && screen != 0) { screenMode(0); return true; }
     const int ctx = seqView() ? 1 : 2;   // (the grid's keys there, the menus' elsewhere; then everywhere's)
     const int a = KeyMap::get().actionOf(k, ctx);
     if (a < 0) return false;
@@ -2208,6 +2270,8 @@ void LoafBreakerEditor::nav(int i)
     case KeyAction::NavManager: openManager(); break;
     case KeyAction::NavScreen: toggleMachine(); break;
     case KeyAction::NavKeys: keysEditor(); break;
+    case KeyAction::NavFull: screenMode(1); break;
+    case KeyAction::NavBorderless: screenMode(proc.wrapperType == juce::AudioProcessor::wrapperType_Standalone ? 2 : 1); break;
     default: break;
     }
 }

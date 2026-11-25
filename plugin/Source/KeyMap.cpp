@@ -30,7 +30,7 @@ KeyMap::KeyMap()
     for (int d = 0; d < 8; ++d) list.push_back({ KeyAction::Nav, KeyAction::NavDomain0 + d, 0, juce::String("ALLER A ") + DOM[d] });
     static const char* NAV[] = { "ONGLET SUIVANT", "ONGLET PRECEDENT", "SAUVER (SAVE)", "ANNULER (PATTERN)", "COPIER LE PATTERN",
                                  "COLLER LE PATTERN", "LISTE DES BREAKS", "PLAYLIST", "GESTION (VST, BIBLIO, FM-1)",
-                                 "APERCU DU FM-1", "CLAVIER (CETTE FENETRE)" };
+                                 "APERCU DU FM-1", "CLAVIER (CETTE FENETRE)", "PLEIN ECRAN", "PLEIN ECRAN SANS BORDURE" };
     for (int i = KeyAction::NavTabNext; i < KeyAction::NavN; ++i) list.push_back({ KeyAction::Nav, i, 0, NAV[i - KeyAction::NavTabNext] });
     static const char* SEQ[] = { "SEQ: PAS A GAUCHE", "SEQ: PAS A DROITE", "SEQ: LIGNE AU-DESSUS", "SEQ: LIGNE EN DESSOUS",
                                  "SEQ: UN TEMPS A GAUCHE", "SEQ: UN TEMPS A DROITE", "SEQ: UNE MESURE A GAUCHE",
@@ -43,20 +43,23 @@ KeyMap::KeyMap()
                                  "MENUS: VALEUR - (GRAND PAS)", "MENUS: VALEUR + (GRAND PAS)", "MENUS: OUVRIR LA LISTE" };
     for (int i = 0; i < KeyAction::MenuN; ++i) list.push_back({ KeyAction::Menu, i, 0, MEN[i] });
     keys.assign(list.size(), {});
-    defaults();
-    const auto saved = ui::settings().getUserSettings()->getValue("keys2");
-    if (saved.isNotEmpty()) {            // (each "INDEX=DESCRIPTION;", the KeyPress's own text)
-        keys.assign(list.size(), {});
-        for (auto& tok : juce::StringArray::fromTokens(saved, ";", ""))
+    defaults(false);                     // (the defaults, then the player's own over them: not saved over first)
+    const auto saved = ui::settings().getUserSettings()->getValue("keys3");
+    if (saved.isNotEmpty()) {            // (each "ACTION NAME=DESCRIPTION|": by name, so new actions never shift the others;
+                                         // an action the save doesn't name keeps its default)
+        for (auto& tok : juce::StringArray::fromTokens(saved, "|", ""))
             if (tok.contains("=")) {
-                const int a = tok.upToFirstOccurrenceOf("=", false, false).getIntValue();
-                if (a >= 0 && a < (int) list.size())
-                    keys[(size_t) a] = juce::KeyPress::createFromDescription(tok.fromFirstOccurrenceOf("=", false, false));
+                const auto name = tok.upToLastOccurrenceOf("=", false, false);
+                for (size_t a = 0; a < list.size(); ++a)
+                    if (list[a].name == name) {
+                        const auto d = tok.fromLastOccurrenceOf("=", false, false);
+                        keys[a] = d.isEmpty() ? juce::KeyPress() : juce::KeyPress::createFromDescription(d);
+                    }
             }
     }
 }
 
-void KeyMap::defaults()
+void KeyMap::defaults(bool store)
 {
     using K = juce::KeyPress;
     using M = juce::ModifierKeys;
@@ -88,6 +91,8 @@ void KeyMap::defaults()
             case KeyAction::NavManager: set('g', ctrl); break;
             case KeyAction::NavScreen: set(K::F9Key); break;
             case KeyAction::NavKeys: set('k', ctrl); break;
+            case KeyAction::NavFull: set(K::F11Key); break;
+            case KeyAction::NavBorderless: set(K::F11Key, shift); break;
             default: break;
             }
         }
@@ -129,7 +134,7 @@ void KeyMap::defaults()
             default: break;
             }
     }
-    save();
+    if (store) save();
 }
 
 static juce::KeyPress norm(const juce::KeyPress& k)   // (a letter as its small one; Ctrl, Shift, Alt kept)
@@ -202,9 +207,9 @@ juce::String KeyMap::labelOf(KeyAction::Kind kind, int index) const
 void KeyMap::save()
 {
     juce::String s;
-    for (size_t a = 0; a < keys.size(); ++a)
-        if (keys[a].isValid()) s << (int) a << "=" << keys[a].getTextDescription() << ";";
-    ui::settings().getUserSettings()->setValue("keys2", s);
+    for (size_t a = 0; a < keys.size(); ++a)  // (every action, a cleared one with nothing after its =)
+        s << list[a].name << "=" << (keys[a].isValid() ? keys[a].getTextDescription() : juce::String()) << "|";
+    ui::settings().getUserSettings()->setValue("keys3", s);
 }
 
 // ------------------------------------------------------------------------------------------------- the editor ---

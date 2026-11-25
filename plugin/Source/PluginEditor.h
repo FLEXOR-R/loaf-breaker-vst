@@ -41,7 +41,12 @@ public:
     void breakMenu();                            // the breaks by category, the playlist
     void playlistEditor();
     void nav(int command);                       // KeyAction::Nav*
-    void keysEditor();                          // VST, library, FM-1 (Exchange.h)
+    void keysEditor();
+    void screenMode(int mode);                   // 0 the window, 1 full screen, 2 borderless full screen
+    int screen = 0;
+    juce::Rectangle<int> windowBounds;
+    int titleH = 0;
+    bool nativeBar = false;                          // VST, library, FM-1 (Exchange.h)
 
     // the page as menus: its parts (lbcore lb_scan), each setting's values once looked at (lb_options), kept by
     // domain | source | tab | part | knob

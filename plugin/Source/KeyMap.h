@@ -12,7 +12,7 @@ struct KeyAction {
     // Nav (everywhere): the domains, the tabs, SAVE, undo, copy, paste, the break list, the playlist, the manager, the
     // FM-1's screen
     enum { NavDomain0 = 0, NavTabNext = 8, NavTabPrev, NavSave, NavUndo, NavCopy, NavPaste, NavBreaks, NavPlaylist,
-           NavManager, NavScreen, NavKeys, NavN };
+           NavManager, NavScreen, NavKeys, NavFull, NavBorderless, NavN };
     // Seq (the grid): the cursor, a step on / off, its values, the lane a step earlier / later
     enum { SeqLeft = 0, SeqRight, SeqUp, SeqDown, SeqBeatLeft, SeqBeatRight, SeqBarLeft, SeqBarRight, SeqHome, SeqEnd,
            SeqToggle, SeqClear, SeqMainUp, SeqMainDown, SeqAltUp, SeqAltDown, SeqChanceUp, SeqChanceDown,
@@ -34,7 +34,7 @@ public:
     const juce::KeyPress& keyOf(int action) const { return keys[(size_t) action]; }
     void assign(int action, const juce::KeyPress& k);   // (another action of the same context with that key loses it)
     void clear(int action);
-    void defaults();
+    void defaults(bool store = true);
     // the action a key press does in a context (1 the grid, 2 the menus: theirs first, then everywhere's); -1 none
     int actionOf(const juce::KeyPress& k, int context) const;
     static juce::String keyName(const juce::KeyPress& k);

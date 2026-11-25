@@ -101,7 +101,11 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   HOLD), the item's inspector (pattern, loops, break, kick, << >>, duplicate, delete). lbcore lb_track / lb_track_write
   (the firmware's edx_track / edx_track_write: each item checked) / lb_track_play; the processor reads the tracks on the
   audio thread while shown (tracksWanted) and writes one through a mailbox (trackLock).
-  Next: a song arranger (the tracks' items), the kick's picture, a mixer.
+  Full screen (FLEXOR: "un mode fullscreen et borderless fullscreen"): MENU › Affichage, F11 / SHIFT+F11, ESC back
+  (LBE::screenMode): the Standalone's kiosk mode, or its window without its bar at the monitor's size; in a DAW the
+  plugin grows to the screen (the host's window is the host's). The drawing scaled to fit, centred. KeyMap saved by
+  action name (settings "keys3": new actions never shift the others) and no longer saved over at start-up.
+  Next: the pages' own pictures (the kick's waveform, the drums', a finer break), a mixer.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours
