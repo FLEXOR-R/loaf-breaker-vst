@@ -134,6 +134,15 @@ uint32_t lb_leds(uint8_t *out, uint32_t n)
     memcpy(out, rf_panel.led, m);
     return m;
 }
+void lb_lights(uint32_t *o)
+{
+    o[0] = lights_b;
+    o[1] = lights_glow > 0 ? lights_db : 0u;
+    o[2] = lit_keys;
+    o[3] = mid_keys;
+    o[4] = dim_keys;
+    o[5] = (uint32_t)lights_glow;
+}
 int lb_playing(void) { return playing_now(); }
 uint32_t lb_flash_size(void) { return RF_FLASH_SIZE; }
 uint32_t lb_flash_get(uint8_t *out, uint32_t n)

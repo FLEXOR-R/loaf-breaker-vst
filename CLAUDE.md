@@ -143,6 +143,17 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   finds it again after a rebuild. The header's window button (left of MENU; FLEXOR: "un bouton de fenêtre cliquable ...
   plein écran avec bordure"): screenMode 3, the window maximised with its bar (DocumentWindow::setFullScreen; in a DAW,
   the screen's area), again: back; MENU › Affichage › Agrandir too; ESC back.
+- The FM-1 as the controller (25 Nov 2026, FLEXOR: "contrôler les touches du clavier et les knobs du VST avec la
+  machine ... les touches actionnées visibles sur le daw et sur la machine (rétroéclairage)"): the firmware's
+  CONTROLLER (0.9.79, its app.c `ctl_on` has the protocol: channel 16 both ways). MENU › Machine FM-1 › Jouer le VST
+  avec le FM-1 (settings fm1ctl, read by the processor at its start). `plugin/Source/Fm1Ctl.*`: the FM-1's own ports
+  (each opened when free, looked for each second; closed while Fm1Link's backup runs), two lock-free FIFOs to the
+  audio thread. The processor's `ctlServe` (processBlock and idlePump): CC 127 1 each second, the LEDs from lbcore
+  `lb_lights` (ABI 13: plat_lights' masks) as notes, changed ones each 15 ms and all each second; `ctlApply`: notes to
+  lb_button / lb_key, CCs to lb_turn / lb_master. Channel 16 from the DAW is the FM-1's while on (never notes for the
+  core), applied only when its own port is not open (no doubles). Its state in the header (FM-1 ... / FM-1 *), its
+  held keys lit on the pads (fm1Keys, fm1Buttons); gone 2.5 s: what it held let go. lbtest checks it through the DAW
+  (channel 16's first white key heard, channel 1's not); coretest the lights.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

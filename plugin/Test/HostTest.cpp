@@ -43,6 +43,18 @@ int main(int argc, char** argv)
     juce::String err;
     const double rate = 48000.0;
     const int block = 512;
+    // (the controller on for this run: the plugin reads it from the user's settings, as the VST's MENU leaves it)
+    std::unique_ptr<juce::PropertiesFile> ctlP;
+    {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "LOAF BREAKER VST";
+        o.filenameSuffix = ".settings";
+        o.folderName = "LOAF BREAKER";
+        o.osxLibrarySubFolder = "Application Support";
+        ctlP = std::make_unique<juce::PropertiesFile>(o);
+        ctlP->setValue("fm1ctl", true);
+        ctlP->saveIfNeeded();
+    }
     auto t0 = juce::Time::getMillisecondCounterHiRes();
     auto p = fm.createPluginInstance(*found[0], rate, block, err);
     if (! p) { std::printf("FAIL: %s\n", err.toRawUTF8()); return 1; }
@@ -90,6 +102,27 @@ int main(int argc, char** argv)
             after = std::max(after, rms(stop));
     }
     std::printf("stopped: rms %.5f\n", after);
+    // the FM-1 as the controller, through the DAW (its port the DAW's): channel 16, the FM-1's first white key held a
+    // second, stopped: heard (the same note on another channel is not a slice: silence)
+    auto ctlRun = [&](int status) {
+        double lv = 0;
+        juce::MidiBuffer km;
+        for (int i = 0; i < (int) (rate * 1.5 / block); ++i) {
+            km.clear();
+            if (i == 0) km.addEvent(juce::MidiMessage((int) status, 16, 127), 0);
+            if (i == (int) (rate * 1.0 / block)) km.addEvent(juce::MidiMessage((int) (status - 0x10), 16, 0), 0);
+            stop.clear();
+            p->processBlock(stop, km);
+            if (i > 4 && i < (int) (rate * 1.0 / block)) lv = std::max(lv, rms(stop));
+        }
+        return lv;
+    };
+    double ctlOn = 1, ctlOff = 1;
+    if (ctlP != nullptr) {
+        ctlOff = ctlRun(0x90);
+        ctlOn = ctlRun(0x9F);
+        std::printf("controller: channel 16 rms %.4f, channel 1 rms %.5f\n", ctlOn, ctlOff);
+    }
     p->releaseResources();
     juce::WavAudioFormat wav;
     std::unique_ptr<juce::FileOutputStream> os(juce::File(juce::File::getCurrentWorkingDirectory().getChildFile(argv[2])).createOutputStream());
@@ -99,7 +132,8 @@ int main(int argc, char** argv)
         std::unique_ptr<juce::AudioFormatWriter> w(wav.createWriterFor(os.get(), rate, 2, 16, {}, 0));
         if (w) { os.release(); w->writeFromAudioSampleBuffer(all, 0, all.getNumSamples()); }
     }
-    const bool ok = level > 0.01 && after < 0.01;
-    std::puts(ok ? "OK" : "FAIL: no sound while the host plays, or sound after it stopped");
+    if (ctlP != nullptr) { ctlP->setValue("fm1ctl", false); ctlP->saveIfNeeded(); }
+    const bool ok = level > 0.01 && after < 0.01 && ctlOn > 0.005 && ctlOff < 0.005;
+    std::puts(ok ? "OK" : "FAIL: no sound while the host plays, sound after it stopped, or the controller's key not heard");
     return ok ? 0 : 1;
 }

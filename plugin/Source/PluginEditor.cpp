@@ -187,6 +187,13 @@ struct Header : Part
         ui::fitText(g, a, msg.withHeight(28).reduced(6, 0), ui::label(11.0f));
         g.setColour(sk.ink);
         ui::fitText(g, b, msg.withTrimmedTop(28).reduced(6, 0), ui::value(22.0f));
+        if (ed.proc.controller()) {      // (the FM-1 as the controller: playing it, or waiting for it)
+            const bool on = ed.proc.controllerState() == 2;
+            g.setColour(on ? sk.hot : sk.dim);
+            g.setFont(ui::labelBold(9.0f));
+            g.drawText(on ? juce::String(juce::CharPointer_UTF8("FM-1 \xe2\x97\x8f")) : juce::String("FM-1 ..."), msg.withHeight(14).reduced(5, 0),
+                       juce::Justification::topRight);
+        }
         // the meters
         for (int c = 0; c < 2; ++c) {
             const float v = c ? vr : vl, hld = c ? hr : hl;
@@ -2412,6 +2419,13 @@ struct Pads : Part
     explicit Pads(LBE& e) : Part(e) {}
     int held = -1;
     bool compact() const { return ! ed.padsOpen; }
+    // (the FM-1 as the controller: the keys its hands hold now, lit too; plat.h's PLAT_WHITE_KEYS / PLAT_BLACK_KEYS)
+    bool fm1White(int i) const { static const int W[16] = { 0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26 }; return (ed.proc.fm1Keys() >> W[i] & 1u) != 0; }
+    bool fm1Black(int i) const
+    {
+        static const int B[11] = { 1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25 };
+        return i < 11 ? (ed.proc.fm1Keys() >> B[i] & 1u) != 0 : (ed.proc.fm1Buttons() >> LB_REC & 1u) != 0;
+    }
     juce::Rectangle<float> fold() const { return compact() ? juce::Rectangle<float>(6, 8, 92, 32) : juce::Rectangle<float>((float) getWidth() - 110.0f, 4, 96, 18); }
     juce::Rectangle<float> white(int i) const
     {
@@ -2437,7 +2451,7 @@ struct Pads : Part
             g.drawText(juce::CharPointer_UTF8("PADS  \xe2\x96\xb4"), fold(), juce::Justification::centred);
             for (int i = 0; i < 12; ++i) {
                 auto r = black(i);
-                const bool on = ed.m.padon[i] || held == 100 + i;
+                const bool on = ed.m.padon[i] || held == 100 + i || fm1Black(i);
                 g.setColour(on ? sk.accent : sk.panel2);
                 g.fillRoundedRectangle(r, 2.0f);
                 g.setColour(on ? sk.bg : sk.ink.withAlpha(0.8f));
@@ -2445,7 +2459,7 @@ struct Pads : Part
             }
             for (int i = 0; i < 16; ++i) {
                 auto r = white(i);
-                const bool on = ed.m.key == i || held == i || (ed.m.slice == i && ed.m.playing);
+                const bool on = ed.m.key == i || held == i || (ed.m.slice == i && ed.m.playing) || fm1White(i);
                 g.setColour(on ? sk.hot : sk.panel2.brighter(0.03f));
                 g.fillRoundedRectangle(r, 2.0f);
                 g.setColour(on ? sk.bg : sk.dim);
@@ -2460,7 +2474,7 @@ struct Pads : Part
         g.drawText(juce::CharPointer_UTF8("REPLIER  \xe2\x96\xbe"), fold(), juce::Justification::centredRight);
         for (int i = 0; i < 12; ++i) {
             auto r = black(i);
-            const bool on = ed.m.padon[i] || held == 100 + i;
+            const bool on = ed.m.padon[i] || held == 100 + i || fm1Black(i);
             g.setColour(on ? sk.accent : sk.panel2);
             g.fillRect(r);
             g.setColour(on ? sk.hot : sk.line);
@@ -2475,7 +2489,7 @@ struct Pads : Part
         }
         for (int i = 0; i < 16; ++i) {
             auto r = white(i);
-            const bool on = ed.m.key == i || held == i || (ed.m.slice == i && ed.m.playing);
+            const bool on = ed.m.key == i || held == i || (ed.m.slice == i && ed.m.playing) || fm1White(i);
             g.setColour(on ? sk.hot : sk.panel2.brighter(0.05f));
             g.fillRect(r);
             g.setColour(on ? sk.hot : sk.line.brighter(0.2f));
@@ -2677,6 +2691,18 @@ void LoafBreakerEditor::paint(juce::Graphics& g) { g.fillAll(ui::cur().bg); }
 void LoafBreakerEditor::timerCallback()
 {
     proc.idlePump();                     // (no audio running: the firmware runs on all the same)
+    {                                    // the FM-1 as the controller: its state said, its hands on the pads
+        const int cs = proc.controllerState();
+        if (cs != ctlShown) {
+            if (cs == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : CONNECT\xc3\x89"));
+            else if (cs == 1 && ctlShown == 2) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : PERDU (D\xc3\x89BRANCH\xc3\x89 ?)"));
+            else if (cs == 1) toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : EN ATTENTE DU FM-1"));
+            ctlShown = cs;
+            root->header.repaint();
+        }
+        const uint64_t h = (uint64_t) proc.fm1Keys() | (uint64_t) proc.fm1Buttons() << 32;
+        if (h != ctlHeld) { ctlHeld = h; root->pads.repaint(); }
+    }
     if (proc.modelIfNew(modelSerial, m)) {
         root->header.repaint();
         root->cats.repaint();
@@ -3121,6 +3147,8 @@ void LoafBreakerEditor::menu()
     skins.addItem(100 + ui::persoIndex(), "PERSO", true, ui::persoIndex() == ui::curIndex());
     skins.addItem(98, "Regler PERSO (couleur par couleur)...");
     juce::PopupMenu fm1;
+    fm1.addItem(206, juce::CharPointer_UTF8("Jouer le VST avec le FM-1 (contr\xc3\xb4leur, USB)"), true, proc.controller());
+    fm1.addSeparator();
     fm1.addItem(205, "GESTION: kicks, patterns, tracks, bibliotheque...");
     fm1.addSeparator();
     fm1.addItem(201, "Envoyer tout au FM-1");
@@ -3167,6 +3195,13 @@ void LoafBreakerEditor::menu()
         if (r == 153) { self->screenMode(3); return; }
         if (r == 53 || r == 54) { self->machineSeparate(r == 54); return; }
         if (r == 205) { self->openManager(); return; }
+        if (r == 206) {
+            const bool on = ! self->proc.controller();
+            self->proc.setController(on);
+            if (! on) { self->ctlShown = 0; self->toast(juce::CharPointer_UTF8("FM-1 CONTR\xc3\x94LEUR : ARR\xc3\x8aT\xc3\x89")); }
+            self->root->repaint();
+            return;
+        }
         auto& p = self->proc;
         auto progress = [self](int pct, const juce::String& t) { if (self) self->toast(pct >= 0 && pct < 100 ? t + " " + juce::String(pct) + "%" : t); };
         if (r == 201 || r == 203) {

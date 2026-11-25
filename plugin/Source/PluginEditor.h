@@ -79,6 +79,8 @@ private:
     void timerCallback() override;
     uint32_t modelSerial = 0, waveSerial = 0, picSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0, tracksSerial = 0;
     juce::String lastDom;
+    int ctlShown = 0;                    // (the controller's state as last said)
+    uint64_t ctlHeld = 0;
     std::unique_ptr<lb_opts_t> optBuf { new lb_opts_t() };
     std::set<int> heldKeys;
     juce::String pendingSource;

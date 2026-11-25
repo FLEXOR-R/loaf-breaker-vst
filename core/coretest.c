@@ -100,6 +100,12 @@ int main(void)
         check(pk > 0.1f, "the snare's picture");
         check(lb_wave_mm(mm, 400) == 400 && mm[1] >= mm[0], "the break's min / max");
     }
+    {                                    /* the lights, for the FM-1 as the controller: as the firmware gave them (the
+                                          * page's buttons lit, the keys glowing at rest) */
+        uint32_t l[6];
+        lb_lights(l);
+        check(l[0] != 0u && (l[2] | l[3] | l[4]) != 0u && l[5] <= 2u, "the lights");
+    }
     printf("%s\n", bad ? "FAILED" : "OK");
     return bad != 0;
 }

@@ -6,6 +6,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include "Core.h"
 #include "Fm1Link.h"
+#include "Fm1Ctl.h"
 
 class LoafBreakerProcessor : public juce::AudioProcessor
 {
@@ -95,6 +96,13 @@ public:
     bool putKicksFm1(juce::MemoryBlock& fm1, const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to);
     bool putKicksVst(const std::vector<juce::MemoryBlock>& blobs, const std::vector<uint8_t>& to);
     Fm1Link link;
+    // the FM-1 as the controller (Fm1Ctl.h): on / off (kept in the user's settings), its state (0 off, 1 waiting for
+    // the FM-1, 2 playing it), the keys (bit k: key k, 0..26) and buttons (bit B_*) it holds now, for the pads
+    void setController(bool on);
+    bool controller() const { return ctlWant.load(); }
+    int controllerState() const { return ctlState.load(); }
+    uint32_t fm1Keys() const { return ctlKeys.load(); }
+    uint32_t fm1Buttons() const { return ctlBtns.load(); }
 
 private:
     bool boot();                         // the core loaded and booted (with the saved image, if any)
@@ -187,6 +195,17 @@ private:
     int whiteKey[16] {}, blackKey[11] {};
     std::atomic<double> lastAudioMs { 0.0 };
     double idleFrom = 0.0;
+    // the controller (the audio thread's, but the atomics)
+    Fm1Ctl ctl;
+    std::atomic<bool> ctlWant { false };
+    std::atomic<int> ctlState { 0 };
+    std::atomic<uint32_t> ctlKeys { 0 }, ctlBtns { 0 };
+    double ctlAnswer = 0.0, ctlKeepT = 0.0, ctlLedT = 0.0, ctlFullT = 0.0;
+    uint8_t ctlSent[43] {};
+    int ctlMlo = 0;
+    bool ctlWas = false;
+    void ctlServe();                     // the keepalive and the LEDs to the FM-1, its messages from its own port
+    void ctlApply(uint32_t msg);         // one from the FM-1: status | d1 << 8 | d2 << 16 (channel 16)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoafBreakerProcessor)
 };

@@ -39,7 +39,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 12
+#define LB_ABI 13
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -57,6 +57,10 @@ LB_API void lb_tempo(int detents);              /* the tempo, 1 BPM a detent (SE
 LB_API void lb_master(int v);                   /* 0..1023 */
 LB_API uint32_t lb_screen(uint16_t *rgb565);    /* the 240 x 240 screen copied; its change count */
 LB_API uint32_t lb_leds(uint8_t *out, uint32_t n);   /* the LEDs (columns x lines), n bytes at most */
+/* the lights as the firmware gave them (plat_lights, plat_lights_mid): o[0] the buttons lit (bit 14: PLAY's green),
+ * o[1] the buttons glowing, o[2] the keys lit, o[3] mid, o[4] glowing (bit k: key k, 0..26), o[5] the glow 0..2 (the
+ * FM-1 as the VST's controller lights itself from them) */
+LB_API void lb_lights(uint32_t *o);
 LB_API int lb_playing(void);
 LB_API uint32_t lb_flash_size(void);
 LB_API uint32_t lb_flash_get(uint8_t *out, uint32_t n);   /* the saved objects as the FM-1 keeps them */

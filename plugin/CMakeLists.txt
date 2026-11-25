@@ -28,7 +28,7 @@ juce_add_plugin(LoafBreaker
     FORMATS ${FORMATS})
 juce_add_binary_data(LoafAssets SOURCES Resources/BarlowCondensed-Medium.ttf Resources/BarlowCondensed-SemiBold.ttf
     Resources/BarlowCondensed-Bold.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
-target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp
+target_sources(LoafBreaker PRIVATE Source/Core.cpp Source/Fm1Link.cpp Source/Fm1Ctl.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp
     Source/Ui.cpp Source/KeyMap.cpp
         Source/Exchange.cpp)
 target_include_directories(LoafBreaker PRIVATE ../core)

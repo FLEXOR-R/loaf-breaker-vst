@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "Ui.h"
 #include "PluginEditor.h"
 
 static constexpr double CORE_RATE = 44100.0;
@@ -24,10 +25,15 @@ LoafBreakerProcessor::LoafBreakerProcessor()
     boot();
     picThread = std::make_unique<PicThread>(*this);
     picThread->startThread(juce::Thread::Priority::low);
+    ctl.paused = [this] { return link.busy(); };
+    if (ui::settings().getUserSettings()->getBoolValue("fm1ctl", false))
+        setController(true);
 }
 
 LoafBreakerProcessor::~LoafBreakerProcessor()
 {
+    ctlWant = false;
+    ctl.stop();
     if (picThread) picThread->stopThread(2000);
     const juce::ScopedLock pl(picLife);
     const juce::ScopedLock sl(lock);
@@ -227,6 +233,92 @@ void LoafBreakerProcessor::produceCore(int n)
 
 void LoafBreakerProcessor::sendMidi(uint32_t pkt) { core.midiIn(pkt); }
 
+// ---- the FM-1 as the controller (Fm1Ctl.h says the messages) ----
+void LoafBreakerProcessor::setController(bool on)
+{
+    ctlWant = on;
+    ui::settings().getUserSettings()->setValue("fm1ctl", on);
+    if (on)
+        ctl.start();
+    else {
+        ctl.stop();
+        ctlState = 0;
+        ctlKeys = ctlBtns = 0;
+    }
+}
+
+void LoafBreakerProcessor::ctlApply(uint32_t msg)
+{
+    const int st = (int) (msg & 0xFF), a = (int) (msg >> 8 & 0x7F), v = (int) (msg >> 16 & 0x7F);
+    const bool down = st == 0x9F && v > 0;
+    if (st == 0x9F || st == 0x8F) {
+        if (a < 14) {                    // a button (LB_* = B_*)
+            core.button(a, down ? 1 : 0);
+            ctlBtns = down ? ctlBtns.load() | 1u << a : ctlBtns.load() & ~(1u << a);
+        } else if (a >= 16 && a < 43) {  // a key, F3 .. G5
+            core.key(a - 16, down, 127);
+            ctlKeys = down ? ctlKeys.load() | 1u << (a - 16) : ctlKeys.load() & ~(1u << (a - 16));
+        }
+    } else if (st == 0xBF) {
+        if (a >= 16 && a < 23 && v != 64)
+            core.turn(a - 16, v - 64);   // (LB_SELECT .. LB_K4 = EN_*)
+        else if (a == 25)
+            ctlMlo = v & 7;
+        else if (a == 24)
+            core.master(v << 3 | ctlMlo);
+        else if (a == 127 && v)
+            ctlAnswer = juce::Time::getMillisecondCounterHiRes();
+    }
+}
+
+void LoafBreakerProcessor::ctlServe()
+{
+    if (! ctlWant.load()) {
+        ctlWas = false;
+        return;
+    }
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    uint32_t msg;
+    while (ctl.popIn(msg))
+        ctlApply(msg);
+    if (! ctlWas || now - ctlKeepT >= 1000.0) {   // on, and every second: the FM-1 stays CONTROLLER (3 s without: off)
+        ctlWas = true;
+        ctlKeepT = now;
+        ctl.pushOut(0xBF | 127u << 8 | 1u << 16);
+    }
+    const bool alive = now - ctlAnswer < 2500.0;
+    ctlState = alive ? 2 : 1;
+    if (! alive && (ctlKeys.load() | ctlBtns.load())) {   // (gone, unplugged: what it held let go)
+        for (int k = 0; k < 27; ++k)
+            if (ctlKeys.load() >> k & 1u) core.key(k, false, 0);
+        for (int b = 0; b < 14; ++b)
+            if (ctlBtns.load() >> b & 1u) core.button(b, 0);
+        ctlKeys = ctlBtns = 0;
+    }
+    if (now - ctlLedT < 15.0)            // (the lights ~60 times a second, as the FM-1's frames)
+        return;
+    ctlLedT = now;
+    uint32_t o[6] {};
+    core.lights(o);
+    const bool full = now - ctlFullT >= 1000.0;   // (all again each second: an FM-1 just come into CONTROLLER is dark)
+    if (full)
+        ctlFullT = now;
+    for (int i = 0; i < 43; ++i) {
+        uint8_t lv = 0;
+        if (i <= 14)                     // the buttons, 14 PLAY's green
+            lv = o[0] >> i & 1u ? 3 : o[1] >> i & 1u ? 1 : 0;
+        else if (i >= 16) {
+            const int k = i - 16;
+            lv = o[2] >> k & 1u ? 3 : o[3] >> k & 1u ? 2 : o[4] >> k & 1u ? 1 : 0;
+        } else
+            continue;
+        if (lv != ctlSent[i] || full) {
+            ctlSent[i] = lv;
+            ctl.pushOut(lv ? (0x9Fu | (uint32_t) i << 8 | (uint32_t) lv << 16) : (0x8Fu | (uint32_t) i << 8));
+        }
+    }
+}
+
 // the host's transport, as LOAF BREAKER's MIDI clock in: started at the host's next bar (4/4), 24 ticks a beat, stopped
 // with the host; messages put in `out` at their sample offsets (as the 0xF0.. bytes, sent to the core in order)
 void LoafBreakerProcessor::hostClock(int numSamples, juce::MidiBuffer& out)
@@ -284,9 +376,18 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     if (params.getRawParameterValue("sync")->load() > 0.5f)
         hostClock(n, events);
     core.sync(params.getRawParameterValue("sync")->load() > 0.5f);
-    for (const auto m : midi)
+    const bool ctlOn = ctlWant.load();
+    for (const auto m : midi) {
+        const auto* d = m.getMessage().getRawData();
+        if (ctlOn && m.getMessage().getRawDataSize() >= 3 && d[0] >= 0x80 && d[0] < 0xF0 && (d[0] & 0x0F) == 0x0F) {
+            if (! ctl.inOpen.load())     // (the FM-1 through the DAW: its port is the DAW's; else its own port has it)
+                ctlApply((uint32_t) d[0] | (uint32_t) d[1] << 8 | (uint32_t) d[2] << 16);
+            continue;                    // (channel 16 is the FM-1's while it plays the VST: never notes)
+        }
         events.addEvent(m.getMessage(), m.samplePosition);
+    }
     midi.clear();
+    ctlServe();
 
     const double ratio = CORE_RATE / hostRate;
     float* outL = buffer.getWritePointer(0);
@@ -385,6 +486,7 @@ void LoafBreakerProcessor::idlePump()
     if (! sl.isLocked() || ! ready || ! core.loaded())
         return;
     drainCommands();
+    ctlServe();
     const int frames = juce::jlimit(0, 44100 / 4, (int) ((now - idleFrom) * CORE_RATE / 1000.0));
     idleFrom += frames * 1000.0 / CORE_RATE;
     int left = frames;
