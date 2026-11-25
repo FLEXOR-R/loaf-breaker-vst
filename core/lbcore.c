@@ -217,6 +217,8 @@ void lb_model(lb_model_t *m)
     lb_cap = 0;
     if (!m->part[0] && (ui.page == PG_KICK || ui.page == PG_KEQ || IS_KFX()) && !kick_easy())
         kick_part_name(kick_part(), m->part);   /* (the screen leaves it out when the tabs take the room) */
+    else if (IS_KFX())                   /* (a kick's FX1 / FX2: its effect, or the part of it ALGORITHM is on) */
+        lb_copy(m->part, fx_part_name()[0] ? fx_part_name() : fx_name(fx_foc()), sizeof m->part);
     else if (!m->part[0] && ui.page == PG_PERC && !set.novice)
         lb_copy(m->part, PPAGE_NAME[perc_pg()], sizeof m->part);
     brk_status(&st);
@@ -257,6 +259,21 @@ void lb_model(lb_model_t *m)
     m->bpm = (float)set.tempo_x10 * 0.1f;
     m->pattern = (int)pat_cur() + 1;
     lb_copy(m->brk, break_name(set.brk), sizeof m->brk);
+    {                                    /* the kick and the drums, for the VST's pictures' cards */
+        uint32_t p = kpre_mem(set.kslot);
+        m->kslot = (int)(set.kslot % KICK_MEMS) + 1;
+        if (p < KICK_PRESETS)
+            lb_copy(m->kpre, KICK_PRESET_NAME[p], sizeof m->kpre);
+        else
+            lb_copy(m->kpre, "COPY", sizeof m->kpre);
+        for (i = 0; i < KICK_LAYERS; i++)
+            m->klev[i] = set.kick.l[i].level;
+        m->klev[4] = (float)kx2_at(set.kslot)->tok * 0.01f;
+        for (i = 0; i < 3u; i++) {
+            lb_copy(m->dpre[i], pp_name(i, perc_x(i)[PX_PRE]), sizeof m->dpre[i]);
+            m->dlev[i] = perc_voice(i)->level;
+        }
+    }
     if (plat_ms() < ui.msg_until) {
         lb_copy(m->say[0], ui.msg[0], sizeof m->say[0]);
         lb_copy(m->say[1], ui.msg[1], sizeof m->say[1]);
@@ -310,6 +327,66 @@ uint32_t lb_wave(float *cols, int n, float *slices, int *nslices)
         slices[i] = (float)b->slice[i] / (float)b->len;
     return serial;
 }
+
+/* ---- the pictures (FLEXOR, 25 Nov 2026: "dans le menu kick un vrai visuel sur le kick, une vraie waveform"): the
+ * sound as the FM-1 draws it (its own kick_rgb / kick_wave, perc_rgb), as many columns as the window wants; called from
+ * the plugin's picture thread (they read the sound's settings, write nothing of the core's) */
+#define LB_PIC_MAX 2048
+uint32_t lb_pic_sig(int what)
+{
+    if (what <= 0) {
+        uint32_t s = sig_of(&set.kick, sizeof set.kick) ^ sig_of(set.ksyn, sizeof set.ksyn) * 3u;
+        return s ^ (sig_of(&klab.cur, sizeof klab.cur) ^ sig_of(kx2_at(set.kslot), sizeof(kick_x2_t)) * 5u) * 7u;
+    }
+    return sig_of(perc_voice((uint32_t)(what - 1) % 3u), sizeof(perc_voice_t)) * 11u + (uint32_t)what;
+}
+int lb_pic(int what, int n, int ms, float *out)
+{
+    static uint8_t col[LB_PIC_MAX][4];
+    static int8_t px[LB_PIC_MAX];
+    int i;
+    if (!out || n <= 0)
+        return 0;
+    n = n > LB_PIC_MAX ? LB_PIC_MAX : n;
+    ms = ms < 20 ? 20 : ms > 3000 ? 3000 : ms;
+    if (what <= 0) {
+        kick_t kk = set.kick;            /* (the whole kick, as heard; nothing of the core's written: another thread) */
+        kick_rgb(&kk, col, (uint32_t)n, (uint32_t)ms);
+        kick_wave(&kk, px, (uint32_t)n, (uint32_t)ms, 127u);
+    } else {
+        perc_rgb((uint32_t)(what - 1) % 3u, perc_voice((uint32_t)(what - 1) % 3u), col, (uint32_t)n, (uint32_t)ms);
+        memset(px, 0, sizeof px);
+    }
+    for (i = 0; i < n; i++) {
+        out[5 * i] = (float)px[i] * (1.0f / 127.0f);
+        out[5 * i + 1] = (float)col[i][0] * (1.0f / 255.0f);
+        out[5 * i + 2] = (float)col[i][1] * (1.0f / 255.0f);
+        out[5 * i + 3] = (float)col[i][2] * (1.0f / 255.0f);
+        out[5 * i + 4] = (float)col[i][3] * (1.0f / 255.0f);
+    }
+    return n;
+}
+/* the break playing's min and max, column by column (the detailed waveform: 2 floats a column, -1..1) */
+int lb_wave_mm(float *mm, int n)
+{
+    const brk_break_t *b = brk_get_break();
+    int c;
+    uint32_t i;
+    if (!b || !b->len || !mm || n <= 0)
+        return 0;
+    for (c = 0; c < n; c++) {
+        uint32_t a = (uint32_t)((uint64_t)b->len * (uint32_t)c / (uint32_t)n), z = (uint32_t)((uint64_t)b->len * (uint32_t)(c + 1) / (uint32_t)n);
+        int16_t lo = 0, hi = 0;
+        for (i = a; i < z; i++) {
+            if (b->pcm[i] < lo) lo = b->pcm[i];
+            if (b->pcm[i] > hi) hi = b->pcm[i];
+        }
+        mm[2 * c] = (float)lo * (1.0f / 32768.0f), mm[2 * c + 1] = (float)hi * (1.0f / 32768.0f);
+    }
+    return n;
+}
+/* a sound heard alone: 0 the kick, 1..3 SN HH CP */
+void lb_drum_hit(int d) { if (d <= 0) kick_hit(); else perc_hit((uint32_t)(d - 1) % 3u); }
 
 int lb_key_index(int black, int i) { return black ? (i >= 0 && i < 11 ? BK[i] : -1) : (i >= 0 && i < 16 ? WK[i] : -1); }
 
@@ -464,6 +541,32 @@ int lb_scan(lb_part_t *out, int max)
         n++;
     }
     snap_put(lb_snapbuf);
+    return n;
+}
+/* the effects PRESETS goes through on an effect's page (a kick's FX1 / FX2, a slot of the chain): their names in order,
+ * the one in use; looked at ahead, the core put back. 0: not an effect's page */
+int lb_fx_list(char (*names)[16], int max, int *cur)
+{
+    char was[16];
+    int n = 0, still = 0, i;
+    if (ui.page != PG_FX || !lb_snap_ready() || max < 1)
+        return 0;
+    lb_copy(was, fx_name(fx_foc()), sizeof was);
+    snap_take(lb_snapbuf);
+    for (i = 0; i < 40; i++)             /* (to the first: PRESETS stops at the ends) */
+        lb_enc(LB_PRESET, -1);
+    lb_copy(names[n++], fx_name(fx_foc()), 16);
+    while (n < max && still < 3) {
+        lb_enc(LB_PRESET, 1);
+        if (!strcmp(fx_name(fx_foc()), names[n - 1])) { still++; continue; }
+        if (!strcmp(fx_name(fx_foc()), names[0])) break;   /* (round) */
+        still = 0;
+        lb_copy(names[n++], fx_name(fx_foc()), 16);
+    }
+    snap_put(lb_snapbuf);
+    *cur = 0;
+    for (i = 0; i < n; i++)
+        if (!strcmp(names[i], was)) *cur = i;
     return n;
 }
 static int lb_opt_walk(int knob, int d, char (*v)[LB_OPT_LEN], int max, int *wrap, const char *start)

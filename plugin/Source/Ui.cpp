@@ -1,5 +1,6 @@
 #include "Ui.h"
 #include "BinaryData.h"
+#include <map>
 
 namespace ui {
 
@@ -261,6 +262,81 @@ void fitText(juce::Graphics& g, const juce::String& t, juce::Rectangle<float> r,
         h -= 1.0f;
     g.setFont(f.withHeight(h));
     g.drawText(t, r, j, false);
+}
+
+void card(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const juce::String& sub, juce::Colour chip, bool lit)
+{
+    const auto& s = cur();
+    g.setColour(s.panel);
+    g.fillRoundedRectangle(r, 6.0f);
+    g.setColour(lit ? s.accent.withAlpha(0.85f) : s.line);
+    g.drawRoundedRectangle(r.reduced(0.5f), 6.0f, lit ? 1.5f : 1.0f);
+    float x = r.getX() + 14.0f;
+    if (! chip.isTransparent()) {
+        g.setColour(chip);
+        g.fillRoundedRectangle(x, r.getY() + 16.0f, 8.0f, 8.0f, 2.0f);
+        x += 16.0f;
+    }
+    if (title.isNotEmpty()) {
+        g.setColour(s.ink);
+        g.setFont(labelBold(11.0f).withExtraKerningFactor(0.12f));
+        const float tw = juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), title);
+        g.drawText(title, juce::Rectangle<float>(x, r.getY() + 6.0f, tw + 4.0f, 28.0f), juce::Justification::centredLeft, false);
+        if (sub.isNotEmpty()) {
+            g.setColour(s.dim.withAlpha(0.8f));
+            fitText(g, sub, { x + tw + 12.0f, r.getY() + 6.0f, r.getRight() - (x + tw + 12.0f) - 110.0f, 28.0f }, label(8.5f),
+                    juce::Justification::centredLeft);
+        }
+    }
+}
+
+juce::Colour layer(const juce::String& n)
+{
+    const auto t = n.toUpperCase();
+    if (t.startsWith("SUB")) return juce::Colour(0xffe5484d);
+    if (t.startsWith("PUNCH")) return juce::Colour(0xfff5a524);
+    if (t.startsWith("GRIT")) return juce::Colour(0xff8fd14f);
+    if (t.startsWith("CLICK")) return juce::Colour(0xff6cc4ff);
+    if (t.startsWith("TOK")) return juce::Colour(0xffc99cff);
+    return juce::Colours::transparentBlack;
+}
+
+juce::Colour rgb(float lo, float mi, float hi, float a)
+{
+    const float m = juce::jmax(lo, mi, hi, 1e-6f);
+    auto c = [](float v, float g, float k) { return (uint8_t) juce::jlimit(30.0f, 255.0f, k * std::pow(juce::jlimit(0.0f, 1.0f, v), g)); };
+    return juce::Colour(juce::jmax((uint8_t) 40, c(lo / m, 0.6f, 255.0f)), c(mi / m, 0.9f, 205.0f), c(hi / m, 0.8f, 255.0f)).withAlpha(a);
+}
+
+void hatch(juce::Graphics& g, juce::Rectangle<float> r)
+{
+    juce::Graphics::ScopedSaveState ss(g);
+    g.reduceClipRegion(r.toNearestInt());
+    g.setColour(juce::Colours::white.withAlpha(0.045f));
+    for (float x = r.getX() - r.getHeight(); x < r.getRight(); x += 6.0f)
+        g.drawLine(x, r.getBottom(), x + r.getHeight(), r.getY(), 2.0f);
+    juce::ColourGradient gr(juce::Colours::black.withAlpha(0.0f), r.getRight() - 8.0f, 0.0f, juce::Colours::black.withAlpha(0.7f), r.getRight(), 0.0f, false);
+    g.setGradientFill(gr);
+    g.fillRect(r.withLeft(r.getRight() - 8.0f));
+}
+
+juce::String subtitle(const juce::String& tab, const juce::String& part)
+{
+    static const std::map<juce::String, juce::String> M = {
+        { "PRESET", "LES KICKS INTEGRES" }, { "CLICK", "LE CLAQUEMENT" }, { "PUNCH", "LE COUP" }, { "STACK", "L'ATTAQUE D'UN AUTRE KICK" },
+        { "TOK", "UN DEUXIEME CLIC" }, { "MIX", "LES COUCHES" }, { "SUB", "LE GRAVE" }, { "GRIT", "LE GRAIN" },
+        { "SYNTH", "LA CHUTE DE HAUTEUR" }, { "SYNTH +", "GRONDEMENT, ASYMETRIE" }, { "MACRO", "TOUT D'UN COUP" },
+        { "OUT", "LA SORTIE DU KICK" }, { "TAIL", "SON CARACTERE, SA NOTE, SA FIN" }, { "TAIL +", "FILTRE ET DRIVE DE LA QUEUE" },
+        { "BASS", "GLISSE, BASSE INVERSEE" }, { "CLEAN MORPH", "VERS UN AUTRE KICK" }, { "TAIL GATE", "LA QUEUE HACHEE" },
+        { "DISTO", "LA TOUCHE DST" }, { "DISTO +", "DRIVE, FORME, SCREECH" }, { "SCREAM", "LE HURLEMENT" },
+        { "SUB FX", "L'EFFET DU GRAVE" }, { "PUNCH FX", "L'EFFET DU COUP" }, { "GRIT FX", "L'EFFET DU GRAIN" },
+        { "CLICK FX", "L'EFFET DU CLIC" }, { "KNOBS", "K1-K4 DU FM-1" }, { "ASSIGN", "CE QUE TOURNENT K1-K4" },
+        { "TOOLS", "MUTER, COMPARER, VOIR" }, { "EQ BANDS", "L'EQ DU KICK" }, { "EQ SHAPE", "SES FREQUENCES" },
+        { "SOUND", "LE CORPS" }, { "SHAPE", "L'ATTAQUE, LA SALETE" }, { "SPACE", "CHUTE, MONTEE, PIECE" },
+    };
+    juce::ignoreUnused(tab);
+    auto it = M.find(part);
+    return it != M.end() ? it->second : juce::String();
 }
 
 } // namespace ui

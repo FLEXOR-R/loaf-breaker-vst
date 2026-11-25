@@ -82,6 +82,24 @@ int main(void)
         while (n < 32 && t1.it[n]) n++;
         check(n == 1 && t1.it[0] == 5 && t1.rep[0] == 3, "a track written and read back");
     }
+    {                                    /* the pictures: the kick drawn, its wave crossing zero; a drum; the break */
+        static float o[1000 * 5], mm[400 * 2];
+        int i, cross = 0;
+        float pk = 0.0f;
+        const uint32_t s0 = lb_pic_sig(0);
+        check(lb_pic(0, 1000, 400, o) == 1000, "the kick's picture: 1000 columns");
+        for (i = 1; i < 1000; i++) {
+            cross += (o[5 * i] > 0.0f) != (o[5 * (i - 1)] > 0.0f);
+            pk = o[5 * i + 4] > pk ? o[5 * i + 4] : pk;
+        }
+        check(cross > 10 && pk > 0.3f, "the kick's picture: its cycles, its level");
+        check(lb_pic_sig(0) == s0, "the kick's signature still while nothing changes");
+        pk = 0.0f;
+        lb_pic(1, 500, 400, o);
+        for (i = 0; i < 500; i++) pk = o[5 * i + 4] > pk ? o[5 * i + 4] : pk;
+        check(pk > 0.1f, "the snare's picture");
+        check(lb_wave_mm(mm, 400) == 400 && mm[1] >= mm[0], "the break's min / max");
+    }
     printf("%s\n", bad ? "FAILED" : "OK");
     return bad != 0;
 }

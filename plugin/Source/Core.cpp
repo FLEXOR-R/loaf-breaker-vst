@@ -102,8 +102,9 @@ bool Core::load(juce::String& error)
     LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync") LB_FN(bank, "lb_bank")
     LB_FN(breaks, "lb_breaks") LB_FN(fm1Export, "lb_fm1_export")
     LB_FN(model, "lb_model") LB_FN(wave, "lb_wave") LB_FN(keyIndex, "lb_key_index") LB_FN(fm1Import, "lb_fm1_import") LB_FN(fm1List, "lb_fm1_list") LB_FN(fm1Put, "lb_fm1_put") LB_FN(fm1Take, "lb_fm1_take") LB_FN(breakName, "lb_break_name") LB_FN(get, "lb_get") LB_FN(breakGo, "lb_break_go") LB_FN(track, "lb_track") LB_FN(trackWrite, "lb_track_write") LB_FN(trackPlay, "lb_track_play") LB_FN(kickSize, "lb_kick_size") LB_FN(kickRead, "lb_kick_read") LB_FN(kickRender, "lb_kick_render") LB_FN(fm1PutKicks, "lb_fm1_put_kicks") LB_FN(vstPutKicks, "lb_vst_put_kicks")
+    LB_FN(picSig, "lb_pic_sig") LB_FN(pic, "lb_pic") LB_FN(waveMM, "lb_wave_mm") LB_FN(fxList, "lb_fx_list") LB_FN(drumHit, "lb_drum_hit")
 #undef LB_FN
-    if (abi() != 11) {
+    if (abi() != LB_ABI) {
         error = "LOAF BREAKER: the core's version does not match the plugin's";
         unload();
         return false;

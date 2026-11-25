@@ -43,4 +43,14 @@ void button(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& tex
 void fitText(juce::Graphics& g, const juce::String& t, juce::Rectangle<float> r, juce::Font f,
              juce::Justification j = juce::Justification::centred);
 
+// the redesign (FLEXOR, 25 Nov 2026: "je veux que tu refonte tout le vst avec cet esprit là"): a card (rounded, its chip,
+// its title and what it does), the layers' colours (SUB red, PUNCH amber, GRIT green, CLICK blue, TOK violet: the same
+// everywhere), the FM-1's RGB view's colour of a column, an OFF stretch's hatch
+void card(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const juce::String& sub = {},
+          juce::Colour chip = juce::Colours::transparentBlack, bool lit = false);
+juce::Colour layer(const juce::String& name);   // transparent: not a layer
+juce::Colour rgb(float lo, float mi, float hi, float alpha = 1.0f);
+void hatch(juce::Graphics& g, juce::Rectangle<float> r);
+juce::String subtitle(const juce::String& tab, const juce::String& part);   // a part's few words ("" none)
+
 } // namespace ui

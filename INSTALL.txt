@@ -67,10 +67,16 @@ LE LIEN AVEC LE FM-1 (bouton FM-1, en haut)
   les envoie aussi au FM-1 depuis Chrome.
 
 L'INTERFACE
-- En haut : les categories (LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM), puis les onglets de la
-  categorie, puis la partie (< >). Les 4 knobs disent ce qu'ils reglent sur la page ouverte.
-- La waveform du break est toujours visible : clique une slice pour la jouer.
-- SHIFT (maintenu) : les knobs deviennent ceux de SEL.
+- En haut : les categories (LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM), puis leurs onglets.
+- Dessous, le son en grand : sur SOUNDS > KICK, le kick tel que le moteur du FM-1 le joue (ATTACK : ses 60
+  premieres ms, BODY : 400 ms, TAIL : le kick entier et sa fin ; 60 MS / 400 MS / 1.5 S / AUTO pour changer), a cote
+  le kick (ses 20 memoires, ECOUTER, COPIER / COLLER, ses couches) ; sur DRUMS la snare, le hat ou le clap ; ailleurs
+  le break, detaille, ses slices (un clic joue la slice).
+- Puis toutes les parties de l'onglet, une carte chacune : les couches ont leur couleur partout (SUB rouge, PUNCH
+  orange, GRIT vert, CLICK bleu, TOK violet), les choix qui se dessinent sont des vignettes (MODE, CURVE, D+ TYPE...),
+  les niveaux des faders, les 4 potards du FM-1 des potards ronds. Sur FX1 / FX2 (et EFFECTS) : l'effet a choisir.
+- PADS (en bas) : un clic deplie les pads en grand, REPLIER les replie.
+- SHIFT (maintenu) : les reglages de SEL.
 - MENU : le skin (LOAF LORD par defaut), le clavier (chaque touche reglable), l'ecran du FM-1 (a afficher ou non).
 
 DANS ABLETON

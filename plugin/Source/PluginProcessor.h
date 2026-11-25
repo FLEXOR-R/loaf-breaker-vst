@@ -38,7 +38,7 @@ public:
     void step(int op, int a, int b, int c, int d);   // a sequencer edit (lb_step)
     // the page as menus (lb_scan, lb_options, lb_set): every part of the tab shown, each setting's values
     static constexpr int MAX_PARTS = 32;
-    struct PartsView { std::vector<lb_part_t> parts; uint32_t serial = 0; };
+    struct PartsView { std::vector<lb_part_t> parts; juce::StringArray fx; int fxCur = -1; uint32_t serial = 0; };   // (fx: an effect's page, the effects PRESETS picks)
     bool partsIfNew(uint32_t& serial, PartsView& out);
     void setValue(int part, int knob, int steps);    // part p's knob k, `steps` values on (lb_set)
     int askOptions(int part, int knob, const char* partName, const char* knobName);   // an id, the answer later
@@ -47,8 +47,14 @@ public:
     void ledsCopy(uint8_t* dst, size_t n);
     juce::String status() const;
     // the new interface's data, copied on the audio thread (never waiting for it)
-    static constexpr int WAVE_COLS = 1024;
-    struct WaveView { std::vector<float> cols; std::vector<float> slices; uint32_t serial = 0; };
+    static constexpr int WAVE_COLS = 1408;
+    struct WaveView { std::vector<float> cols; std::vector<float> slices; std::vector<float> mm; uint32_t serial = 0; };
+    // the sound's picture (FLEXOR: "dans le menu kick un vrai visuel sur le kick, une vraie waveform"): the kick (0) or a
+    // drum (1..3) as the FM-1 draws it (lb_pic), n columns over ms, worked out on its own thread when the sound changes
+    struct PicView { std::vector<float> cols; int what = -1, ms = 0, n = 0; uint32_t serial = 0; };
+    void picWant(int what, int ms, int n) { picWhat = what; picMs = ms; picN = n; }   // (what -1: none wanted)
+    bool picIfNew(uint32_t& serial, PicView& out);
+    void hear(int d) { send(CmdKey, -1 - d, 0); }   // a sound heard alone: 0 the kick, 1..3 SN HH CP
     bool modelIfNew(uint32_t& serial, lb_model_t& out);
     bool waveIfNew(uint32_t& serial, WaveView& out);
     bool seqIfNew(uint32_t& serial, lb_seq_t& out);  // the pattern in RAM (lb_seq), 30 a second
@@ -100,6 +106,18 @@ private:
 
     Core core;
     juce::CriticalSection lock;
+    // the pictures' thread: lb_pic reads the sound's settings only (the core's other functions stay the audio thread's);
+    // picLife held while it works, and by whatever unloads the core
+    struct PicThread : juce::Thread {
+        explicit PicThread(LoafBreakerProcessor& p) : juce::Thread("LOAF pictures"), proc(p) {}
+        LoafBreakerProcessor& proc;
+        void run() override;
+    };
+    std::unique_ptr<PicThread> picThread;
+    juce::CriticalSection picLife;
+    juce::SpinLock picLock;
+    PicView picBuf;
+    std::atomic<int> picWhat { -1 }, picMs { 400 }, picN { 1000 };
     std::atomic<bool> ready { false };
     juce::String error;
     juce::MemoryBlock pendingFlash;
@@ -146,6 +164,8 @@ private:
     // the menus' service (on the audio thread, never waiting: try-locks)
     lb_part_t partsBuf[MAX_PARTS] {};
     int nParts = 0;
+    char fxNames[32][16] {};
+    int nFx = 0, fxCur = 0, fxAge = 0;
     uint32_t partsSerial = 0, partsAge = 0;
     bool partsWanted = true;
     juce::SpinLock menuLock;

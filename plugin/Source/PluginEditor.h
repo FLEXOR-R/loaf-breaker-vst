@@ -24,6 +24,11 @@ public:
     LoafBreakerProcessor& proc;
     lb_model_t m {};
     LoafBreakerProcessor::WaveView wave;
+    LoafBreakerProcessor::PicView pic;           // the kick's or a drum's picture (lb_pic)
+    int picZoom = 0;                             // its view in ms (0: the tab's own)
+    bool padsOpen = false;                       // the pads open (big) or folded to a strip
+    void togglePads();
+    int heroKind() const;                        // what is drawn big: -1 nothing, 0 the kick, 1..3 a drum, 9 the break
     void tap(int button);                       // a button pressed and let go
     void hold(int button, bool down);
     void turn(int encoder, int detents);
@@ -72,7 +77,7 @@ public:
 
 private:
     void timerCallback() override;
-    uint32_t modelSerial = 0, waveSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0, tracksSerial = 0;
+    uint32_t modelSerial = 0, waveSerial = 0, picSerial = 0, partsSerial = 0, seqSerial = 0, patsSerial = 0, tracksSerial = 0;
     juce::String lastDom;
     std::unique_ptr<lb_opts_t> optBuf { new lb_opts_t() };
     std::set<int> heldKeys;

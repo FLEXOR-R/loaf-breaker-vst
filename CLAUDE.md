@@ -110,6 +110,24 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   plugin grows to the screen (the host's window is the host's). The drawing scaled to fit, centred. KeyMap saved by
   action name (settings "keys3": new actions never shift the others) and no longer saved over at start-up.
   Next: the pages' own pictures (the kick's waveform, the drums', a finer break), a mixer.
+- The look A "ANATOMIE" (25 Nov 2026, FLEXOR, on the mockups https://claude.ai/artifact/PzQ9Aav3nXg8ZX78D3zjUh: "c'est la
+  bonne direction, refonte tout le vst avec cet esprit"; before it, "un vrai visuel sur le kick, une vraie waveform ...
+  une waveform plus détaillée ... chaque identité de menu du firmware adaptée pour un PC"): under the tabs the sound drawn
+  big (Root: SoundHero for SOUNDS › KICK / DRUMS, WavePanel the break elsewhere; none on PATTERN's grid and SONG's
+  arranger), the page's parts as cards under it (MenuContent), the pads folded to a strip (Pads compact, PADS ▴ opens
+  them, settings padsOpen). The kick: lbcore `lb_pic` (the firmware's own kick_rgb / kick_wave of set.kick, its picture;
+  perc_rgb for SN HH CP), on the processor's picture thread (PicThread: it reads the sound's settings only; picLife held
+  while it works and by whatever unloads the core), redrawn when `lb_pic_sig` moves; the view zoomed on the tab (ATTACK
+  60 ms, BODY / DIRT 400, TAIL 1.5 s with its END, else 700; the chips 60 MS 400 MS 1.5 S AUTO); its card: KICK n and
+  its built-in (lb_model kslot, kpre), the 20 memories (PRESETS turned: the kick), ECOUTER (lb_drum_hit 0), COPIER /
+  COLLER (SEL + ARP), SAVE, the layers' levels (klev). The break: every pixel its min / max (lb_wave_mm) coloured as the
+  FM-1's RGB view (ui::rgb: the lows red, the mids green, the highs blue). The cards (ui::card): a chip in the layer's
+  colour (ui::layer: SUB red, PUNCH amber, GRIT green, CLICK blue, TOK violet, everywhere), a few words (ui::subtitle),
+  OFF hatched (ui::hatch), values both ways filled from their 0, values with a picture as tiles (iconAt: TAIL's MODE
+  and CURVE, D+ TYPE's curves, TOK's TYPE, the layers' effects, a drum's DIRT), a part of one list (PRESET) listed
+  whole in a column, MIX / LEVELS / MACRO as faders, MORE's KNOBS as round knobs; an effect's page (a kick's FX1 / FX2,
+  EFFECTS' slots) the effect first (lb_fx_list: the effects PRESETS goes through; picked by PRESETS turned); the FM-1's
+  spare K3 PRESET hidden on the layers' FX. A firmware fix found on the way (0.9.78 TEST, page_say's 24 bytes).
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

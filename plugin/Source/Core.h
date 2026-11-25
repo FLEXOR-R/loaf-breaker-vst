@@ -60,6 +60,11 @@ public:
     void (*track)(int t, lb_track_t* o) = nullptr;
     void (*trackWrite)(const lb_track_t* t) = nullptr;
     void (*trackPlay)(int op, int t) = nullptr;
+    uint32_t (*picSig)(int what) = nullptr;
+    int (*pic)(int what, int n, int ms, float* out) = nullptr;
+    int (*waveMM)(float* mm, int n) = nullptr;
+    int (*fxList)(char (*names)[16], int max, int* cur) = nullptr;
+    void (*drumHit)(int d) = nullptr;
     int (*fm1Take)(const uint8_t* fm1, uint32_t n, const lb_pick_t* p, int np, char* rep, uint32_t rcap) = nullptr;
     // the break bank beside the library (breaks.bank: every break, 44.1 kHz 16-bit), read once, shared by every instance
     static const juce::MemoryBlock& bankFile();

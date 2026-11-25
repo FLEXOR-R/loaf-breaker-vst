@@ -31,10 +31,15 @@ typedef struct {
     char say[2][24];                     /* the header's message (app_say), "" none */
     uint32_t say_n;                      /* moves with each new message */
     int skin;                            /* the FM-1's skin (SETUP K1), 0..23 */
+    int kslot;                           /* the kick playing, 1..20, and the built-in it came from */
+    char kpre[16];
+    float klev[5];                       /* its layers' levels 0..1: SUB PUNCH GRIT CLICK, then TOK */
+    char dpre[3][16];                    /* SN HH CP: their presets, their levels */
+    float dlev[3];
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 11
+#define LB_ABI 12
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -77,6 +82,13 @@ LB_API void lb_model(lb_model_t *m);
 /* the break playing: its waveform in n columns (peak 0..1, then low / mid / high energy 0..1, 4 floats a column), its
  * slices' starts in 0..1 (up to 32), their count; its serial (moves when another break comes in) */
 LB_API uint32_t lb_wave(float *cols, int n, float *slices, int *nslices);
+/* the sound's picture (FLEXOR: "un vrai visuel sur le kick, une vraie waveform"): what 0 the kick as heard, 1..3 SN HH CP;
+ * n columns (up to 2048) over ms (20..3000): 5 floats a column, the wave (-1..1, the kick's), lows, mids, highs, peak
+ * (0..1, the FM-1's RGB view); lb_pic_sig moves when the sound changes. The break: lb_wave_mm, its min / max a column */
+LB_API uint32_t lb_pic_sig(int what);
+LB_API int lb_pic(int what, int n, int ms, float *out);
+LB_API int lb_wave_mm(float *mm, int n);
+LB_API void lb_drum_hit(int d);
 LB_API int lb_key_index(int black, int i);       /* the FM-1 key (0..26) of white key i (0..15) or black key i (0..10) */
 LB_API void lb_save(void);
 /* the sequencer (the VST's PATTERN page; FLEXOR, 24 Nov 2026: "il me faut un vrai séquenceur"): the pattern in RAM whole,
@@ -125,6 +137,9 @@ typedef struct {
     char v[LB_OPT_MAX][LB_OPT_LEN];
 } lb_opts_t;
 LB_API int lb_options(int part, int knob, lb_opts_t *o);
+/* an effect's page (a kick's FX1 / FX2, a slot of the chain): the effects PRESETS goes through, in order, and the one
+ * in use (cur); 0 elsewhere. Picked: PRESETS turned by the difference */
+LB_API int lb_fx_list(char (*names)[16], int max, int *cur);
 /* part p's knob k (lb_scan's order) moved `steps` values (each a change, whatever detents it takes), the part shown
  * then back; the values it moved */
 LB_API int lb_set(int part, int knob, int steps);

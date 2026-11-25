@@ -22,16 +22,54 @@ LoafBreakerProcessor::LoafBreakerProcessor()
     tmpR.assign(8192, 0.0f);
     chunk.assign(2 * 256, 0.0f);
     boot();
+    picThread = std::make_unique<PicThread>(*this);
+    picThread->startThread(juce::Thread::Priority::low);
 }
 
 LoafBreakerProcessor::~LoafBreakerProcessor()
 {
+    if (picThread) picThread->stopThread(2000);
+    const juce::ScopedLock pl(picLife);
     const juce::ScopedLock sl(lock);
     core.unload();
 }
 
+// the pictures: the sound looked at 25 times a second (its signature), drawn again when it, or what is wanted, changed
+void LoafBreakerProcessor::PicThread::run()
+{
+    uint32_t lastSig = 0;
+    int lastWhat = -2, lastMs = 0, lastN = 0;
+    std::vector<float> tmp;
+    while (! threadShouldExit()) {
+        wait(40);
+        const int what = proc.picWhat, ms = proc.picMs, n = juce::jlimit(16, 2048, (int) proc.picN);
+        if (what < 0) continue;
+        const juce::ScopedTryLock life(proc.picLife);
+        if (! life.isLocked() || ! proc.ready || ! proc.core.loaded() || ! proc.core.pic) continue;
+        const uint32_t sig = proc.core.picSig(what);
+        if (sig == lastSig && what == lastWhat && ms == lastMs && n == lastN) continue;
+        tmp.assign((size_t) n * 5, 0.0f);
+        proc.core.pic(what, n, ms, tmp.data());
+        lastSig = sig, lastWhat = what, lastMs = ms, lastN = n;
+        const juce::SpinLock::ScopedLockType sl(proc.picLock);
+        proc.picBuf.cols.swap(tmp);
+        proc.picBuf.what = what, proc.picBuf.ms = ms, proc.picBuf.n = n;
+        proc.picBuf.serial++;
+    }
+}
+
+bool LoafBreakerProcessor::picIfNew(uint32_t& serial, PicView& out)
+{
+    const juce::SpinLock::ScopedLockType sl(picLock);
+    if (serial == picBuf.serial || picBuf.cols.empty()) return false;
+    out = picBuf;
+    serial = picBuf.serial;
+    return true;
+}
+
 bool LoafBreakerProcessor::boot()
 {
+    const juce::ScopedLock pl(picLife);
     const juce::ScopedLock sl(lock);
     ready = false;
     if (! core.load(error))
@@ -103,6 +141,7 @@ void LoafBreakerProcessor::drainCommands()
     const auto scope = cmdFifo.read(cmdFifo.getNumReady());
     auto run = [this](const CmdItem& it) {
         if (it.cmd == CmdButton) core.button(it.a, it.b);
+        else if (it.cmd == CmdKey && it.a < 0) core.drumHit(-1 - it.a);   // (a sound heard alone: drumHit)
         else if (it.cmd == CmdKey) core.key(it.a, it.b != 0, it.b > 0 ? it.b : 100);
         else if (it.cmd == CmdTurn) core.turn(it.a, it.b);
         else if (it.cmd == CmdTempo) core.tempo(it.b);
@@ -159,6 +198,8 @@ void LoafBreakerProcessor::coreMs()
                     waveBuf.cols.resize(4 * WAVE_COLS);
                     core.wave(waveBuf.cols.data(), WAVE_COLS, sl, &ns);
                     waveBuf.slices.assign(sl, sl + ns);
+                    waveBuf.mm.resize(2 * WAVE_COLS);
+                    core.waveMM(waveBuf.mm.data(), WAVE_COLS);
                     waveBuf.serial = ws;
                     coreWaveSerial = ws;
                 }
@@ -382,6 +423,10 @@ void LoafBreakerProcessor::serveMenus()
     if (! tl.isLocked()) return;
     if (partsWanted || ++partsAge >= 4) {
         nParts = core.scan(partsBuf, MAX_PARTS);
+        if (++fxAge >= 4 || partsWanted) {   // (an effect's page: the effects PRESETS goes through, twice a second)
+            nFx = core.fxList(fxNames, 32, &fxCur);
+            fxAge = 0;
+        }
         partsSerial++;
         partsAge = 0;
         partsWanted = false;
@@ -403,6 +448,9 @@ bool LoafBreakerProcessor::partsIfNew(uint32_t& serial, PartsView& out)
     const juce::SpinLock::ScopedLockType sl(menuLock);
     if (serial == partsSerial) return false;
     out.parts.assign(partsBuf, partsBuf + nParts);
+    out.fx.clear();
+    for (int i = 0; i < nFx; ++i) out.fx.add(juce::String(fxNames[i]));
+    out.fxCur = nFx > 0 ? fxCur : -1;
     out.serial = serial = partsSerial;
     return true;
 }

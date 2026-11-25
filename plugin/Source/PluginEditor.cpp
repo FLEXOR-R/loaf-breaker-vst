@@ -2,6 +2,8 @@
 #include "Ui.h"
 #include "Exchange.h"
 #include <set>
+#include <optional>
+#include <tuple>
 
 using LBE = LoafBreakerEditor;
 static constexpr int W = 1440, H = 900;
@@ -291,65 +293,83 @@ struct Tabs : Part
 };
 
 // --------------------------------------------------------------------------------------------------- the wave ---
+// the break, big and detailed (FLEXOR, 25 Nov 2026: "pour les breaks j'aimerais une waveform plus détaillée"): each
+// pixel column its min and max, coloured as the FM-1's RGB view (the lows red, the mids green, the highs blue), the
+// slices numbered with their keys, the 32 steps, the playhead; a click plays the slice
 struct WavePanel : Part
 {
     explicit WavePanel(LBE& e) : Part(e) {}
     int held = -1;
-    juce::Rectangle<float> area() const { return getLocalBounds().toFloat().reduced(14.0f, 16.0f).withTrimmedBottom(26.0f); }
+    juce::Rectangle<float> area() const { return { 8.0f, 26.0f, (float) getWidth() - 16.0f, (float) getHeight() - 62.0f }; }
     void paint(juce::Graphics& g) override
     {
         const auto& sk = s();
         auto r = getLocalBounds().toFloat();
-        ui::panel(g, r.reduced(1.0f), "BREAK  /  " + juce::String(ed.m.brk));
-        auto a = area();
-        // the poster's title, faint, behind
-        auto t = ui::title();
-        if (t.isValid()) {
-            g.setOpacity(0.05f);
-            g.drawImage(t, a.withSizeKeepingCentre(a.getHeight() * 2.5f, a.getHeight()), juce::RectanglePlacement::centred);
-            g.setOpacity(1.0f);
-        }
+        g.setColour(sk.bg.brighter(0.02f));
+        g.fillRoundedRectangle(r, 6.0f);
+        g.setColour(sk.line);
+        g.drawRoundedRectangle(r.reduced(0.5f), 6.0f, 1.0f);
         const auto& w = ed.wave;
-        const int n = (int) w.cols.size() / 4;
-        const float mid = a.getCentreY(), half = a.getHeight() * 0.5f - 4.0f;
-        // the playhead: where the break's playing, from the step (two bars of 16)
+        const int ns = (int) w.slices.size();
+        g.setColour(sk.dim);
+        g.setFont(ui::label(8.5f).withExtraKerningFactor(0.14f));
+        g.drawText("BREAK  /  " + juce::String(ed.m.brk) + "  /  " + juce::String(ns) + " SLICES", 14, 4, 600, 20, juce::Justification::centredLeft);
+        auto a = area();
+        const float mid = a.getCentreY(), half = a.getHeight() * 0.5f - 2.0f;
         const float play = ed.m.playing && ed.m.step >= 0 ? (float) (ed.m.step % 32) / 32.0f : -1.0f;
-        if (n > 0) {
-            for (float x = 0; x < a.getWidth(); x += 3.0f) {   // pixel bars: 2 px wide, a pixel apart
-                const int c = juce::jlimit(0, n - 1, (int) (x / a.getWidth() * n));
-                const float pk = w.cols[(size_t) (4 * c)], lo = w.cols[(size_t) (4 * c + 1)],
-                            mi = w.cols[(size_t) (4 * c + 2)], hi = w.cols[(size_t) (4 * c + 3)];
-                const float tot = juce::jmax(1e-3f, lo + mi + hi);
-                // the colour: the bass dark, the highs bright (the skin's ink to its hot white or accent)
-                juce::Colour col = sk.ink.interpolatedWith(sk.accent, juce::jlimit(0.0f, 1.0f, (hi + 0.5f * mi) / tot));
-                if (play >= 0.0f && x / a.getWidth() > play) col = col.withMultipliedAlpha(0.55f);
-                g.setColour(col);
-                const float hgt = juce::jmax(1.0f, pk * half);
-                for (float y = -hgt; y < hgt; y += 3.0f)        // stepped: a pixel grid
-                    g.fillRect(a.getX() + x, mid + y, 2.0f, 2.0f);
+        // the slices: the one playing (or held) lit, every fourth a darker line
+        for (int i = 0; i < ns; ++i) {
+            const float x0 = a.getX() + w.slices[(size_t) i] * a.getWidth();
+            const float x1 = i + 1 < ns ? a.getX() + w.slices[(size_t) i + 1] * a.getWidth() : a.getRight();
+            const bool now = i == ed.m.slice || i == held;
+            if (now) { g.setColour(sk.accent.withAlpha(0.08f)); g.fillRect(x0, a.getY(), x1 - x0, a.getHeight()); }
+            g.setColour(i % 4 == 0 ? sk.line.brighter(0.2f) : sk.line.withAlpha(0.6f));
+            g.fillRect(x0, a.getY(), 1.0f, a.getHeight());
+        }
+        g.setColour(sk.line.withAlpha(0.7f));
+        g.fillRect(a.getX(), mid, a.getWidth(), 1.0f);
+        const int n = (int) w.mm.size() / 2, nb = (int) w.cols.size() / 4;
+        if (n > 0 && nb > 0) {
+            for (int x = 0; x < (int) a.getWidth(); ++x) {
+                const int c = juce::jlimit(0, n - 1, (int) ((float) x / a.getWidth() * n));
+                const int cb = juce::jlimit(0, nb - 1, (int) ((float) x / a.getWidth() * nb));
+                const float lo = w.cols[(size_t) (4 * cb + 1)], mi = w.cols[(size_t) (4 * cb + 2)], hi = w.cols[(size_t) (4 * cb + 3)];
+                const float mn = w.mm[(size_t) (2 * c)], mx = w.mm[(size_t) (2 * c + 1)];
+                const bool past = play >= 0.0f && (float) x / a.getWidth() > play;
+                g.setColour(ui::rgb(lo, mi, hi, past ? 0.55f : 1.0f));
+                const float y0 = mid - juce::jlimit(-1.0f, 1.0f, mx) * half, y1 = mid - juce::jlimit(-1.0f, 1.0f, mn) * half;
+                g.fillRect(a.getX() + (float) x, y0, 1.0f, juce::jmax(1.0f, y1 - y0));
             }
         }
-        // the slices
-        for (size_t i = 0; i < w.slices.size(); ++i) {
-            const float x = a.getX() + w.slices[i] * a.getWidth();
-            const bool now = (int) i == ed.m.slice || (int) i == held;
-            g.setColour(now ? sk.hot : sk.line.brighter(0.25f));
-            g.fillRect(x, a.getY(), now ? 2.0f : 1.0f, a.getHeight());
+        for (int i = 0; i < ns; ++i) {           // (the slices' numbers, over the wave)
+            const float x0 = a.getX() + w.slices[(size_t) i] * a.getWidth();
+            const bool now = i == ed.m.slice || i == held;
+            g.setColour(sk.bg.withAlpha(0.7f));
+            g.fillRoundedRectangle((float) x0 + 3.0f, a.getY() + 2.0f, i >= 9 ? 18.0f : 12.0f, 14.0f, 2.0f);
             g.setColour(now ? sk.hot : sk.dim);
-            g.setFont(ui::label(11.0f));
-            g.drawText(juce::String((int) i + 1), (int) x + 3, (int) a.getY() + 2, 24, 12, juce::Justification::centredLeft);
+            g.setFont(ui::labelBold(9.0f));
+            g.drawText(juce::String(i + 1), (int) x0 + 3, (int) a.getY() + 2, i >= 9 ? 18 : 12, 14, juce::Justification::centred);
         }
         if (play >= 0.0f) {
-            g.setColour(sk.hot);
-            g.fillRect(a.getX() + play * a.getWidth(), a.getY() - 4.0f, 2.0f, a.getHeight() + 8.0f);
+            g.setColour(sk.white.withAlpha(0.25f));
+            g.fillRect(a.getX() + play * a.getWidth() - 3.0f, a.getY(), 8.0f, a.getHeight());
+            g.setColour(sk.white);
+            g.fillRect(a.getX() + play * a.getWidth(), a.getY(), 2.0f, a.getHeight());
         }
-        // the 32 steps, the one playing lit
+        // the 32 steps, then the slices' keys
         const float sw = a.getWidth() / 32.0f;
         for (int i = 0; i < 32; ++i) {
-            juce::Rectangle<float> c(a.getX() + i * sw + 1.0f, a.getBottom() + 8.0f, sw - 2.0f, 10.0f);
+            juce::Rectangle<float> c(a.getX() + i * sw + 1.0f, a.getBottom() + 8.0f, sw - 3.0f, 9.0f);
             const bool now = ed.m.playing && ed.m.step >= 0 && ed.m.step % 32 == i;
             g.setColour(now ? sk.hot : i % 4 == 0 ? sk.line.brighter(0.3f) : sk.line);
-            g.fillRect(c);
+            g.fillRoundedRectangle(c, 1.5f);
+        }
+        auto& km = KeyMap::get();
+        const float kw = a.getWidth() / 16.0f;
+        g.setFont(ui::labelBold(9.0f));
+        for (int i = 0; i < 16; ++i) {
+            g.setColour(i == ed.m.key ? sk.hot : sk.dim.withAlpha(0.7f));
+            g.drawText(km.labelOf(KeyAction::White, i), juce::Rectangle<float>(a.getX() + i * kw, a.getBottom() + 20.0f, kw, 14.0f), juce::Justification::centred);
         }
     }
     int sliceAt(float x) const
@@ -372,6 +392,227 @@ struct WavePanel : Part
         if (held >= 0 && held < 16) ed.key(false, held, false);
         held = -1;
         repaint();
+    }
+};
+
+// ------------------------------------------------------------------------------------ the sound, drawn big ---
+// (FLEXOR, 25 Nov 2026: "dans le menu kick un vrai visuel sur le kick, une vraie waveform"): the kick (or the drum) as
+// the FM-1's engine plays it (lb_pic: its kick_wave and kick_rgb), the view zoomed on the tab's part of it (ATTACK its
+// first 60 ms, BODY 400 ms, TAIL the whole kick), its END marked; beside it the kick's card (its 20 memories, ECOUTER,
+// COPIER, its layers) or the drums' (SN HH CP, their presets, their steps)
+struct SoundHero : Part
+{
+    explicit SoundHero(LBE& e) : Part(e) {}
+    int what = 0;                         // 0 the kick, 1..3 SN HH CP
+    static constexpr float SW = 1032.0f, X0 = 16.0f, WW = 1000.0f, CY = 124.0f, A = 94.0f;
+    static int autoMs(const juce::String& tab, int what)
+    {
+        if (what) return what == 2 ? 300 : 400;
+        if (tab == "ATTACK") return 60;
+        if (tab == "BODY" || tab == "DIRT") return 400;
+        if (tab == "TAIL") return 1500;
+        return 700;
+    }
+    int ms() const { return ed.picZoom > 0 ? ed.picZoom : autoMs(tabName(), what); }
+    juce::String tabName() const { return ed.m.tab_on >= 0 && ed.m.tab_on < ed.m.ntabs ? juce::String(ed.m.tabs[ed.m.tab_on]) : juce::String(); }
+    juce::Rectangle<float> zoomChip(int i) const { return { SW - 4.0f - (4 - i) * 54.0f, 5.0f, 50.0f, 17.0f }; }
+    juce::Rectangle<float> mem(int i) const { const float w = 34.0f; return { SW + 8.0f + 16.0f + (i % 10) * (w + 1.5f), 70.0f + (i / 10) * 23.0f, w, 20.0f }; }
+    juce::Rectangle<float> btn(int i) const { const float w = 112.0f; return { SW + 8.0f + 16.0f + i * (w + 5.0f), 124.0f, w, 32.0f }; }
+    juce::Rectangle<float> drumRow(int i) const { return { SW + 8.0f + 12.0f, 12.0f + i * 80.0f, 360.0f, 74.0f }; }
+    float endMs() const                   // TAIL's END, from the tab's parts (OFF: none)
+    {
+        for (auto& p : ed.parts.parts)
+            for (int k = 0; k < 4; ++k)
+                if (juce::String(p.kname[k]) == "END") {
+                    const juce::String v(p.kval[k]);
+                    if (v.containsOnly("0123456789MS ")) return v.getFloatValue();
+                }
+        return -1.0f;
+    }
+    void paint(juce::Graphics& g) override
+    {
+        const auto& sk = s();
+        const auto& p = ed.pic;
+        juce::Rectangle<float> sc(0, 0, SW, (float) getHeight());
+        g.setColour(sk.bg.brighter(0.02f));
+        g.fillRoundedRectangle(sc, 6.0f);
+        g.setColour(sk.line);
+        g.drawRoundedRectangle(sc.reduced(0.5f), 6.0f, 1.0f);
+        const int m = ms();
+        static const char* DN[3] = { "SNARE", "HAT", "CLAP" };
+        juce::String t = what ? juce::String(DN[(what - 1) % 3]) + "  /  " + juce::String(ed.m.dpre[(what - 1) % 3])
+                              : "KICK " + juce::String(ed.m.kslot) + "  /  " + juce::String(ed.m.kpre) + "  /  " + tabName();
+        t << "  /  " << (m >= 1000 ? juce::String(m / 1000.0, 1) + " S" : juce::String(m) + " MS");
+        g.setColour(sk.dim);
+        g.setFont(ui::label(8.5f).withExtraKerningFactor(0.14f));
+        g.drawText(t, 14, 4, 700, 20, juce::Justification::centredLeft);
+        static const char* Z[4] = { "60 MS", "400 MS", "1.5 S", "AUTO" };
+        static const int ZM[4] = { 60, 400, 1500, 0 };
+        for (int i = 0; i < 4; ++i) {
+            const bool on = ed.picZoom == ZM[i];
+            auto c = zoomChip(i);
+            g.setColour(on ? sk.ink : sk.line);
+            if (on) g.fillRoundedRectangle(c, 2.0f); else g.drawRoundedRectangle(c, 2.0f, 1.0f);
+            g.setColour(on ? sk.bg : sk.dim);
+            g.setFont(ui::labelBold(8.0f));
+            g.drawText(Z[i], c, juce::Justification::centred);
+        }
+        g.setColour(sk.line.withAlpha(0.8f));
+        g.fillRect(X0, CY, WW, 1.0f);
+        const bool fresh = p.what == what && p.ms == m && p.n > 0;
+        if (fresh) {
+            const int n = p.n;
+            juce::Path outline;
+            for (int x = 0; x < (int) WW; ++x) {
+                const int c = juce::jlimit(0, n - 1, (int) ((float) x / WW * n));
+                const float* v = &p.cols[(size_t) (5 * c)];
+                const auto col = ui::rgb(v[1], v[2], v[3]);
+                if (what == 0) {                 // the kick: its wave, cycle by cycle, filled from the middle
+                    const float y = CY - juce::jlimit(-1.0f, 1.0f, v[0]) * A;
+                    g.setColour(col.withAlpha(0.35f));
+                    g.fillRect(X0 + x, juce::jmin(y, CY - v[4] * A), 1.0f, std::abs(y - (CY - v[4] * A)) + 0.0f);
+                    g.setColour(col);
+                    g.fillRect(X0 + x, juce::jmin(y, CY), 1.0f, juce::jmax(1.0f, std::abs(y - CY)));
+                    if (x == 0) outline.startNewSubPath(X0, CY - v[4] * A); else outline.lineTo(X0 + x, CY - v[4] * A);
+                } else {                         // a drum: its level, both ways
+                    const float h = juce::jmax(1.0f, v[4] * A);
+                    g.setColour(col);
+                    g.fillRect(X0 + x, CY - h, 1.0f, 2.0f * h);
+                }
+            }
+            if (what == 0) {
+                g.setColour(sk.white.withAlpha(0.35f));
+                g.strokePath(outline, juce::PathStrokeType(1.0f));
+            }
+        } else {
+            g.setColour(sk.dim.withAlpha(0.6f));
+            g.setFont(ui::label(10.0f));
+            g.drawText("...", juce::Rectangle<float>(X0, CY - 20, WW, 40), juce::Justification::centred);
+        }
+        if (what == 0 && tabName() == "TAIL") {  // the END, where it cuts
+            const float e = endMs();
+            if (e > 0.0f && e < (float) m) {
+                const float x = X0 + e / (float) m * WW;
+                g.setColour(sk.hot);
+                for (float y = 30.0f; y < 220.0f; y += 9.0f) g.fillRect(x, y, 1.5f, 5.0f);
+                g.setFont(ui::labelBold(9.0f));
+                g.drawText("END  " + juce::String((int) e) + " MS", (int) x + 6, 28, 140, 14, juce::Justification::centredLeft);
+            }
+        }
+        // the time
+        g.setColour(sk.line.withAlpha(0.8f));
+        g.fillRect(0.0f, 226.0f, SW, 1.0f);
+        const int stepMs = m <= 60 ? 10 : m <= 300 ? 50 : m <= 400 ? 50 : m <= 700 ? 100 : 250;
+        g.setFont(ui::label(8.0f));
+        for (int tt = 0; tt <= m; tt += stepMs) {
+            const float x = X0 + (float) tt / (float) m * WW;
+            g.setColour(sk.line.brighter(0.15f));
+            g.fillRect(x, 228.0f, 1.0f, 6.0f);
+            g.setColour(sk.dim.withAlpha(0.7f));
+            g.drawText(tt >= 1000 ? juce::String(tt / 1000.0, tt % 1000 ? 2 : 0) + " S" : juce::String(tt) + " MS", (int) x + 3, 234, 60, 14, juce::Justification::centredLeft);
+        }
+        // the card beside it
+        juce::Rectangle<float> cd(SW + 8.0f, 0.0f, (float) getWidth() - SW - 8.0f, (float) getHeight());
+        ui::card(g, cd, {});
+        if (what == 0) paintKickCard(g, cd); else paintDrumCard(g, cd);
+    }
+    int hover = -1;
+    void paintKickCard(juce::Graphics& g, juce::Rectangle<float> cd)
+    {
+        const auto& sk = s();
+        g.setColour(sk.hot);
+        g.setFont(ui::labelBold(30.0f));
+        const juce::String k = "KICK " + juce::String(ed.m.kslot);
+        g.drawText(k, (int) cd.getX() + 16, 8, 160, 52, juce::Justification::centredLeft);
+        g.setColour(sk.ink.withAlpha(0.8f));
+        g.setFont(ui::labelBold(14.0f));
+        g.drawText(ed.m.kpre, (int) cd.getX() + 150, 18, 220, 40, juce::Justification::centredLeft);
+        for (int i = 0; i < 20; ++i) {
+            const auto r = mem(i);
+            const bool on = i + 1 == ed.m.kslot;
+            g.setColour(on ? sk.ink : hover == i ? sk.panel2.brighter(0.15f) : sk.panel2);
+            g.fillRoundedRectangle(r, 2.0f);
+            g.setColour(on ? sk.bg : sk.dim);
+            g.setFont(ui::labelBold(8.5f));
+            g.drawText(juce::String(i + 1), r, juce::Justification::centred);
+        }
+        static const char* B[3] = { "ECOUTER", "COPIER / COLLER", "SAVE" };
+        for (int i = 0; i < 3; ++i)
+            ui::button(g, btn(i), B[i], i == 0, hover == 100 + i, 10.5f);
+        static const char* L[5] = { "SUB", "PUNCH", "GRIT", "CLICK", "TOK" };
+        const float bw = (cd.getWidth() - 32.0f - 4 * 10.0f) / 5.0f;
+        for (int i = 0; i < 5; ++i) {
+            juce::Rectangle<float> b(cd.getX() + 16.0f + i * (bw + 10.0f), 168.0f, bw, 58.0f);
+            g.setColour(sk.panel2);
+            g.fillRoundedRectangle(b, 2.0f);
+            const auto c = ui::layer(L[i]);
+            g.setColour(c.withAlpha(0.85f));
+            const float h = juce::jlimit(0.0f, 1.0f, ed.m.klev[i]) * b.getHeight();
+            g.fillRect(b.withTop(b.getBottom() - h));
+            g.setColour(c);
+            g.setFont(ui::labelBold(8.5f));
+            g.drawText(L[i], juce::Rectangle<float>(b.getX(), 230.0f, bw, 16.0f), juce::Justification::centred);
+        }
+    }
+    void paintDrumCard(juce::Graphics& g, juce::Rectangle<float>)
+    {
+        const auto& sk = s();
+        static const char* N[3] = { "SN", "HH", "CP" };
+        for (int i = 0; i < 3; ++i) {
+            auto r = drumRow(i);
+            const bool on = i + 1 == what;
+            g.setColour(on ? sk.panel2.brighter(0.06f) : sk.panel);
+            g.fillRoundedRectangle(r, 3.0f);
+            g.setColour(on ? sk.ink : sk.line);
+            g.drawRoundedRectangle(r, 3.0f, 1.0f);
+            g.setColour(on ? sk.hot : sk.dim);
+            g.setFont(ui::labelBold(14.0f));
+            g.drawText(N[i], (int) r.getX() + 10, (int) r.getY() + 6, 50, 30, juce::Justification::centredLeft);
+            g.setColour(on ? sk.ink : sk.dim);
+            g.setFont(ui::label(10.5f));
+            g.drawText(juce::String(ed.m.dpre[i]) + "  /  " + juce::String((int) std::lround(ed.m.dlev[i] * 100.0f)) + "%",
+                       (int) r.getX() + 60, (int) r.getY() + 6, 200, 30, juce::Justification::centredLeft);
+            ui::button(g, hearBtn(i), "ECOUTER", false, hover == 200 + i, 9.0f);
+            // its steps in the pattern (its first bar)
+            const float sw = (r.getWidth() - 20.0f) / 16.0f;
+            for (int st = 0; st < 16; ++st) {
+                const bool hit = (ed.seq.mask[(i + 1) % 4][0] >> st) & 1u;
+                g.setColour(hit ? (on ? sk.ink : sk.dim) : sk.panel2.brighter(0.04f));
+                g.fillRoundedRectangle(r.getX() + 10.0f + st * sw, r.getBottom() - 22.0f, sw - 2.0f, 12.0f, 1.5f);
+            }
+        }
+    }
+    juce::Rectangle<float> hearBtn(int i) const { auto r = drumRow(i); return { r.getRight() - 84.0f, r.getY() + 8.0f, 74.0f, 24.0f }; }
+    int hit(juce::Point<float> p) const
+    {
+        for (int i = 0; i < 4; ++i) if (zoomChip(i).contains(p)) return 300 + i;
+        if (what == 0) {
+            for (int i = 0; i < 20; ++i) if (mem(i).contains(p)) return i;
+            for (int i = 0; i < 3; ++i) if (btn(i).contains(p)) return 100 + i;
+        } else {
+            for (int i = 0; i < 3; ++i) if (hearBtn(i).contains(p)) return 200 + i;
+            for (int i = 0; i < 3; ++i) if (drumRow(i).contains(p)) return 210 + i;
+        }
+        if (p.x < SW) return 400;               // (the picture: heard)
+        return -1;
+    }
+    void mouseMove(const juce::MouseEvent& e) override { const int h = hit(e.position); if (h != hover) { hover = h; repaint(); } }
+    void mouseExit(const juce::MouseEvent&) override { hover = -1; repaint(); }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        const int h = hit(e.position);
+        static const int ZM[4] = { 60, 400, 1500, 0 };
+        if (h >= 300 && h < 304) { ed.picZoom = ZM[h - 300]; repaint(); return; }
+        if (h == 400) { ed.proc.hear(what); return; }
+        if (what == 0) {
+            if (h >= 0 && h < 20 && h + 1 != ed.m.kslot) ed.turn(LB_PRESET, h + 1 - ed.m.kslot);   // (PRESETS: the kick, here)
+            else if (h == 100) ed.proc.hear(0);
+            else if (h == 101) { ed.hold(LB_SEL, true); ed.tap(LB_ARP); juce::Timer::callAfterDelay(120, [this] { ed.hold(LB_SEL, false); }); }
+            else if (h == 102) ed.tap(LB_SAVE);
+        } else {
+            if (h >= 200 && h < 203) ed.proc.hear(h - 199);
+            else if (h >= 210 && h < 213 && h - 209 != what && ed.m.tab_on >= 0) ed.turn(LB_SELECT, (h - 209) - what);
+        }
     }
 };
 
@@ -415,6 +656,66 @@ static Kind kindOf(const LBE::Opts& o)
 }
 } // namespace menus
 
+// the icons of some settings' values (TAIL's MODE and CURVE, D+ TYPE, TOK's TYPE, the layers' effects, a drum's DIRT):
+// each a little picture of what it does, over u 0..1 (nullopt: no icon)
+static std::optional<float> iconAt(const juce::String& v, float u)
+{
+    const float pi = juce::MathConstants<float>::pi, x = u * 2.0f - 1.0f;   // (a transfer curve: x in, y out)
+    auto env = [&](float k) { return std::exp(-u * k); };
+    auto clampf = [](float a) { return juce::jlimit(-1.0f, 1.0f, a); };
+    if (v == "CLASSIC") return env(2.2f) * std::tanh(1.8f * std::sin(u * 40.0f));
+    if (v == "CLEAN") return env(2.2f) * std::sin(u * 40.0f);
+    if (v == "SPLIT") return env(2.2f) * (u < 0.35f ? std::tanh(2.0f * std::sin(u * 40.0f)) : std::sin(u * 40.0f));
+    if (v == "DIRTY") return env(2.2f) * clampf(std::sin(u * 40.0f) * (0.4f + u * 3.0f) * 3.0f);
+    if (v == "EXP") return env(4.0f) * 2.0f - 1.0f;
+    if (v == "LINEAR") return 1.0f - 2.0f * u;
+    if (v == "SNAP") return (u < 0.55f ? 1.0f - u * 0.25f : juce::jmax(0.0f, 0.86f - (u - 0.55f) * 6.0f)) * 2.0f - 1.0f;
+    if (v == "SOFT") return std::cos(u * pi);
+    if (v == "SHARP") return u < 0.5f ? 1.0f : -1.0f;
+    if (v == "FOLD") return std::sin(x * 2.6f);
+    if (v == "CLIP") return clampf(x * 1.8f);
+    if (v == "CRUSH") return std::round(x * 3.0f) / 3.0f;
+    if (v == "RECT") return std::abs(x) * 2.0f - 1.0f;
+    if (v == "TUBE") return x > 0 ? std::tanh(x * 2.4f) : std::tanh(x * 1.1f) * 0.85f;
+    if (v == "HALF") return juce::jmax(0.0f, x) * 2.0f - 0.3f;
+    if (v == "SINE") return std::sin(x * pi * 0.5f);
+    if (v == "WRAP") { float y = x * 1.8f; while (y > 1.0f) y -= 2.0f; while (y < -1.0f) y += 2.0f; return y; }
+    if (v == "FUZZ") return (x < 0 ? -1.0f : 1.0f) * (1.0f - std::exp(-std::abs(x) * 5.0f));
+    if (v == "SQUARE") return std::sin(u * 18.0f) > 0 ? 0.8f : -0.8f;
+    if (v == "NOISE") return std::sin(u * 517.0f) * std::sin(u * 211.0f + 1.0f) * 0.9f;
+    if (v == "DRIVE") return std::tanh(3.0f * std::sin(u * 2.0f * pi * 2.0f));
+    if (v == "CRUNCH" || v == "BITS") return std::round(std::sin(u * 2.0f * pi * 2.0f) * 2.0f) / 2.0f;
+    if (v == "FILTER") return u < 0.55f ? 0.6f : 0.6f - (u - 0.55f) * 3.5f;
+    if (v == "RING MOD") return std::sin(u * 2.0f * pi * 7.0f) * std::sin(u * pi);
+    if (v == "HARD") return clampf(std::sin(u * 2.0f * pi * 2.0f) * 3.0f);
+    if (v == "OFF" || v == "EMPTY") return 0.0f;
+    if (v == "PUNCH" || v == "MB COMP" || v == "MAGIC MBC") return (u < 0.15f ? u / 0.15f : 1.0f - (u - 0.15f) * 0.5f) * 1.6f - 0.8f;
+    if (v == "FLANGER") return std::sin(u * 2.0f * pi * 3.0f + std::sin(u * 2.0f * pi) * 2.0f) * 0.8f;
+    if (v == "TREMOLO") return std::sin(u * 2.0f * pi * 9.0f) * (0.5f + 0.4f * std::sin(u * 2.0f * pi * 2.0f));
+    if (v == "REVERB") return std::sin(u * 70.0f) * std::exp(-u * 3.0f) * 0.9f;
+    if (v == "DELAY") return std::fmod(u, 0.33f) < 0.05f ? 0.9f * (1.0f - u) : 0.0f;
+    if (v == "EQ" || v == "MAGIC EQ") return std::sin(u * 2.0f * pi) * 0.6f;
+    if (v == "TAPE") return std::tanh(2.0f * std::sin(u * 2.0f * pi * 2.0f + 0.3f * std::sin(u * 9.0f))) * 0.85f;
+    return std::nullopt;
+}
+static bool hasIcons(const juce::StringArray& v)
+{
+    if (v.size() < 2 || v.size() > 12) return false;
+    for (auto& s : v) if (! iconAt(s.trim(), 0.5f)) return false;
+    return true;
+}
+static void drawIcon(juce::Graphics& g, const juce::String& v, juce::Rectangle<float> r, juce::Colour c)
+{
+    juce::Path p;
+    for (int i = 0; i <= 40; ++i) {
+        const float u = (float) i / 40.0f;
+        const float y = r.getCentreY() - juce::jlimit(-1.0f, 1.0f, iconAt(v.trim(), u).value_or(0.0f)) * r.getHeight() * 0.45f;
+        if (i == 0) p.startNewSubPath(r.getX() + u * r.getWidth(), y); else p.lineTo(r.getX() + u * r.getWidth(), y);
+    }
+    g.setColour(c);
+    g.strokePath(p, juce::PathStrokeType(1.4f));
+}
+
 struct MenuContent : Part
 {
     explicit MenuContent(LBE& e) : Part(e) {}
@@ -426,11 +727,30 @@ struct MenuContent : Part
         int cur = -1, n = 0;
         int off = -1;                    // (a long slider's OFF: a wider stretch of it, shaded)
         float offW = 1.0f;
+        int centre = -1;                 // (a value both ways, -50 .. +50: filled from its 0)
         bool wrap = false;
+        bool tiles = false;              // (its values as pictures: TAIL's MODE, D+ TYPE ...)
+        bool listed = false;             // (a part of one list: its values listed whole, PRESET)
+        bool fxPick = false;             // (an effect's page: the effect, picked by PRESETS)
     };
-    struct Card { juce::String title; juce::Rectangle<float> r; bool live = false; std::vector<Param> ps; };
+    struct Card { juce::String title, sub; juce::Colour chip; juce::Rectangle<float> r; bool live = false, faders = false, rings = false; std::vector<Param> ps; };
+    // the FM-1's four knobs (MORE › KNOBS): round, as on the machine
+    static bool ringsFor(const Card& c)
+    {
+        if (c.title != "KNOBS" || c.ps.size() != 4) return false;
+        for (auto& q : c.ps) if (q.kind != menus::Slider) return false;
+        return true;
+    }
+    // levels side by side (MIX › LEVELS, the kick's MIX, MACRO): faders, as on a mixer
+    static bool fadersFor(const Card& c)
+    {
+        if (c.ps.size() < 2 || c.ps.size() > 5) return false;
+        if (c.title != "MIX" && c.title != "LEVELS" && c.title != "MACRO") return false;
+        for (auto& q : c.ps) if (q.kind != menus::Slider) return false;
+        return true;
+    }
     std::vector<Card> cards;
-    int hoverCard = -1, hoverParam = -1;
+    int hoverCard = -1, hoverParam = -1, hoverOpt = -1;
     int focus = -1;                      // (the setting the keyboard has: its place among them all, -1 none)
     Param* nth(int i) { for (auto& c : cards) for (auto& q : c.ps) if (i-- == 0) return &q; return nullptr; }
     int count() const { int n = 0; for (auto& c : cards) n += (int) c.ps.size(); return n; }
@@ -463,61 +783,160 @@ struct MenuContent : Part
     int dragFrom = 0, dragSent = 0;
     float dragU = 0.0f;
     float pxStep = 8.0f;
+    bool dragV = false;
+    const Card* cardOf(const Param* q) const { for (auto& c : cards) for (auto& p : c.ps) if (&p == q) return &c; return nullptr; }
 
-    int availW = 1400;
-    static constexpr float CARD_W = 440.0f, ROW_H = 44.0f, HEAD_H = 30.0f, GAP = 10.0f;
+    int availW = 1400, availH = 390;
+    static constexpr float ROW_H = 34.0f, HEAD_H = 34.0f, GAP = 8.0f, TILE_H = 46.0f;
 
-    // the cards again from the scan (lb_scan's order: the part shown on the FM-1 first; kept in the page's first order)
+    // a setting's height: a row; its values as pictures, rows of tiles; a list, all of it
+    float paramH(const Param& q) const
+    {
+        if (q.listed) return juce::jmax(ROW_H, (float) ((q.n + listCols(q) - 1) / listCols(q)) * 19.0f + 6.0f);
+        if (q.tiles) return 18.0f + (float) ((q.n + 4) / 5) * (TILE_H + 4.0f);
+        return ROW_H;
+    }
+    // the cards again from the scan (lb_scan's order: the part shown on the FM-1 first; kept in the page's first order),
+    // laid out to fill the room: a few cards side by side, more in rows, a list (PRESET) a column of its own
     void rebuild()
     {
         cards.clear();
         const auto& ps = ed.parts.parts;
         const int n = (int) ps.size();
         if (n == 0) { setSize(availW, 10); repaint(); return; }
-        // the natural order: the round started where the FM-1 is; shown from the page's first part when known
         int first = 0;
         const auto ord = order.find(ed.pageKey());
         if (ord != order.end()) {
             for (int i = 0; i < n; ++i) if (ident(ps[(size_t) i]) == ord->second) { first = i; break; }
         } else if (n > 1)
             order[ed.pageKey()] = ident(ps[0]);
-        const float avail = (float) availW - 4.0f;
-        const int cols = juce::jmax(1, (int) ((avail + GAP) / (CARD_W + GAP)));   // (three, at full width: a card never wider)
-        const float cw = (avail - GAP * (cols - 1)) / cols;
-        float y = 2.0f, rowH = 0.0f;
+        // the cards and their settings, unplaced
         for (int j = 0; j < n; ++j) {
             const int i = (first + j) % n;
             const auto& p = ps[(size_t) i];
             Card c;
             c.title = p.part[0] ? juce::String(p.part) : n == 1 ? tabName() : juce::String("PLUS");
+            c.sub = ui::subtitle(tabName(), c.title);
+            c.chip = ui::layer(c.title);
             c.live = i == 0 && n > 1;
-            int rows = 0;
-            for (int k = 0; k < 4; ++k) if (p.kname[k][0]) rows++;
-            const int col = j % cols;
-            if (col == 0 && j) { y += rowH + GAP; rowH = 0.0f; }
-            const float h = HEAD_H + juce::jmax(1, rows) * ROW_H + 10.0f;
-            c.r = { 2.0f + col * (cw + GAP), y + 8.0f, cw, h };
-            rowH = juce::jmax(rowH, h + 8.0f);
-            float ry = c.r.getY() + HEAD_H - 4.0f;
             for (int k = 0; k < 4; ++k) {
                 if (! p.kname[k][0]) continue;
+                if (juce::String(p.kname[k]) == "PRESET" && c.title.endsWith(" FX")) continue;   // (the FM-1's spare K3: the kick)
                 Param q;
                 q.part = i;
                 q.knob = k;
                 q.name = p.kname[k];
                 q.val = p.kval[k];
                 q.key = ed.optKey(p, k);
-                q.row = { c.r.getX() + 12.0f, ry, c.r.getWidth() - 24.0f, ROW_H - 6.0f };
-                q.ctl = q.row.withTrimmedLeft(juce::jmin(130.0f, q.row.getWidth() * 0.38f));
                 refreshParam(q);
                 c.ps.push_back(q);
-                ry += ROW_H;
             }
+            c.faders = fadersFor(c);
+            c.rings = ringsFor(c);
+            c.faders |= c.rings;                 // (laid out and dragged as faders: columns, up / down)
+            int shown = 0;
+            for (auto& q : c.ps) shown += q.name.isNotEmpty();
+            if (shown == 1 && c.ps.size() == 1 && c.ps[0].kind == menus::List && c.ps[0].n > 1 && c.ps[0].n <= 40)
+                c.ps[0].listed = true;   // (one list alone, PRESET: its values listed whole, a column)
             cards.push_back(std::move(c));
         }
-        setSize(availW, (int) (y + rowH + 12.0f));
+        // an effect's page (a kick's FX1 / FX2, a slot of the chain): the effect itself first, every one listed (PRESETS)
+        if (! ed.parts.fx.isEmpty()) {
+            Card c;
+            c.title = "EFFET";
+            c.sub = "PRESETS";
+            Param q;
+            q.part = -1;
+            q.fxPick = q.listed = true;
+            q.kind = menus::List;
+            q.n = ed.parts.fx.size();
+            q.cur = ed.parts.fxCur;
+            q.name = "EFFET";
+            q.val = ed.parts.fx[juce::jmax(0, q.cur)];
+            q.key = "fx|" + ed.pageKey();
+            c.ps.push_back(q);
+            cards.insert(cards.begin(), std::move(c));
+        }
+        // the columns: a listed card a narrow column of its own (left); the others in a grid
+        const float avail = (float) availW - 4.0f;
+        std::vector<int> listed, grid;
+        for (int i = 0; i < (int) cards.size(); ++i) (cards[(size_t) i].ps.size() == 1 && cards[(size_t) i].ps[0].listed ? listed : grid).push_back(i);
+        float x0 = 2.0f;
+        float bottom = 0.0f;
+        for (int li : listed) {
+            auto& c = cards[(size_t) li];
+            const float h = juce::jmax((float) availH - 6.0f, HEAD_H + paramH(c.ps[0]) + 10.0f);
+            c.r = { x0, 2.0f, 290.0f, h };
+            layoutCard(c);
+            x0 += 290.0f + GAP;
+            bottom = juce::jmax(bottom, c.r.getBottom());
+        }
+        const int ng = (int) grid.size();
+        if (ng > 0) {
+            const int cols = ng <= 3 ? ng : ng == 4 ? (avail - x0 > 1100.0f ? 4 : 2) : ng <= 6 ? 3 : 4;
+            float cw = (avail - x0 - GAP * (cols - 1)) / cols;
+            if (ng == 1) {                       // (one card alone: as wide as it needs, not the whole window)
+                const auto& c0 = cards[(size_t) grid[0]];
+                cw = juce::jmin(cw, c0.faders ? 130.0f * (float) c0.ps.size() + 40.0f : 760.0f);
+            }
+            const int rows = (ng + cols - 1) / cols;
+            // each row as tall as its tallest card's settings; stretched to fill the room when they fit
+            std::vector<float> need((size_t) rows, 0.0f);
+            for (int j = 0; j < ng; ++j) {
+                float h = HEAD_H + 10.0f;
+                if (cards[(size_t) grid[(size_t) j]].faders) h += 140.0f;
+                else for (auto& q : cards[(size_t) grid[(size_t) j]].ps) h += paramH(q);
+                need[(size_t) (j / cols)] = juce::jmax(need[(size_t) (j / cols)], h);
+            }
+            float total = GAP * (rows - 1);
+            for (float h : need) total += h;
+            const float stretch = total < (float) availH - 6.0f ? ((float) availH - 6.0f - GAP * (rows - 1)) / (total - GAP * (rows - 1)) : 1.0f;
+            float y = 2.0f;
+            for (int r = 0; r < rows; ++r) {
+                const float rh = need[(size_t) r] * stretch;
+                for (int col = 0; col < cols; ++col) {
+                    const int j = r * cols + col;
+                    if (j >= ng) break;
+                    auto& c = cards[(size_t) grid[(size_t) j]];
+                    c.r = { x0 + col * (cw + GAP), y, cw, rh };
+                    layoutCard(c);
+                }
+                y += rh + GAP;
+            }
+            bottom = juce::jmax(bottom, y - GAP);
+        }
+        setSize(availW, (int) bottom + 6);
         dragP = nullptr;
         repaint();
+    }
+    void layoutCard(Card& c)
+    {
+        if (c.faders) {                          // each a column: its value above, its track, its name below
+            const float n = (float) c.ps.size(), w = (c.r.getWidth() - 28.0f) / n;
+            for (size_t i = 0; i < c.ps.size(); ++i) {
+                auto& q = c.ps[i];
+                q.row = { c.r.getX() + 14.0f + (float) i * w, c.r.getY() + HEAD_H, w, c.r.getHeight() - HEAD_H - 10.0f };
+                const float tw = juce::jmin(46.0f, w - 16.0f);
+                q.ctl = juce::Rectangle<float>(q.row.getCentreX() - tw * 0.5f, q.row.getY() + 24.0f, tw, q.row.getHeight() - 48.0f);
+                if (c.rings) {
+                    const float d = juce::jmin(w - 20.0f, q.row.getHeight() - 56.0f, 110.0f);
+                    q.ctl = juce::Rectangle<float>(d, d).withCentre({ q.row.getCentreX(), q.row.getY() + 8.0f + d * 0.5f });
+                }
+            }
+            return;
+        }
+        float need = 0.0f;
+        for (auto& q : c.ps) need += paramH(q);
+        const float room = c.r.getHeight() - HEAD_H - 8.0f;
+        const float grow = need > 0.0f && room > need ? juce::jmin(1.35f, room / need) : 1.0f;   // (rows a bit taller when there is room)
+        float ry = c.r.getY() + HEAD_H;
+        for (auto& q : c.ps) {
+            const float h = paramH(q) * (q.tiles || q.listed ? 1.0f : grow);
+            q.row = { c.r.getX() + 14.0f, ry, c.r.getWidth() - 28.0f, h - 6.0f };
+            if (q.tiles || q.listed) q.ctl = q.row.withTrimmedTop(q.tiles ? 18.0f : 0.0f);
+            else q.ctl = q.row.withTrimmedLeft(juce::jmin(110.0f, q.row.getWidth() * 0.3f));
+            ry += h;
+        }
     }
     std::map<juce::String, juce::String> order;   // the page | its first part
     static juce::String ident(const lb_part_t& p)
@@ -537,23 +956,33 @@ struct MenuContent : Part
         q.cur = o.v.indexOf(q.val);
         if (q.cur < 0) { ed.opts.erase(it); q.kind = menus::Unknown; ed.wantOptions(q.part, q.knob); return; }   // (the list moved on)
         q.kind = menus::kindOf(o);
+        q.tiles = hasIcons(o.v) && q.n > 2;
         q.off = -1;
         q.offW = 1.0f;
+        q.centre = -1;
         if (q.kind == menus::Slider && q.n > 12)   // (FLEXOR: "les curseurs qui ont pas mal de travel, comme les filtres,
                                                    // doivent avoir une zone OFF plus grande et délimitée discrètement")
             for (int i = 0; i < q.n; ++i)
                 if (o.v[i].trim() == "OFF") { q.off = i; q.offW = juce::jmax(2.5f, 0.14f * (float) (q.n - 1)); break; }
+        if (q.kind == menus::Slider && q.off < 0 && o.v[0].trimStart().startsWithChar('-') && o.v[q.n - 1].trimStart().startsWithChar('+'))
+            for (int i = 0; i < q.n; ++i)        // (both ways: its 0, the middle)
+                if (o.v[i].trim().getFloatValue() == 0.0f && o.v[i].containsAnyOf("0")) { q.centre = i; break; }
     }
     // the values only (the same parts): no relayout
     bool sameShape() const
     {
         const auto& ps = ed.parts.parts;
-        size_t total = 0;
-        for (auto& c : cards) total += c.ps.size();
+        size_t total = 0, ncards = 0;
+        for (auto& c : cards) { if (! c.ps.empty() && c.ps[0].fxPick) continue; ncards++; for (auto& q : c.ps) total++; }
         size_t want = 0;
-        for (auto& p : ps) for (int k = 0; k < 4; ++k) if (p.kname[k][0]) want++;
-        if (total != want || cards.size() != ps.size()) return false;
+        for (auto& p : ps) for (int k = 0; k < 4; ++k)
+            if (p.kname[k][0] && ! (juce::String(p.kname[k]) == "PRESET" && juce::String(p.part).endsWith(" FX"))) want++;
+        if (total != want || ncards != ps.size()) return false;
+        const bool fxCard = ! cards.empty() && ! cards[0].ps.empty() && cards[0].ps[0].fxPick;
+        if (fxCard != ! ed.parts.fx.isEmpty()) return false;
+        if (fxCard && cards[0].ps[0].n != ed.parts.fx.size()) return false;
         for (auto& c : cards) for (auto& q : c.ps) {
+            if (q.fxPick) continue;
             if (q.part >= (int) ps.size()) return false;
             if (q.name != ps[(size_t) q.part].kname[q.knob] || q.key != ed.optKey(ps[(size_t) q.part], q.knob)) return false;
         }
@@ -562,11 +991,20 @@ struct MenuContent : Part
     void update()
     {
         if (! sameShape()) { rebuild(); return; }
+        bool relayout = false;
         for (auto& c : cards) for (auto& q : c.ps) {
+            if (q.fxPick) { q.cur = ed.parts.fxCur; q.val = ed.parts.fx[juce::jmax(0, q.cur)]; continue; }
             if (&q == dragP) continue;
+            const auto was = std::make_tuple(q.kind, q.tiles, q.listed, q.n);
             q.val = ed.parts.parts[(size_t) q.part].kval[q.knob];
+            const bool listed = q.listed;
             refreshParam(q);
+            q.listed = listed && q.kind == menus::List;
+            if (! listed && c.ps.size() == 1 && q.kind == menus::List && q.n > 1 && q.n <= 40) q.listed = true;
+            relayout |= was != std::make_tuple(q.kind, q.tiles, q.listed, q.n);
         }
+        for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c));
+        if (relayout) { rebuild(); return; }
         repaint();
     }
     // ---- drawing
@@ -575,16 +1013,12 @@ struct MenuContent : Part
         const auto& sk = s();
         for (int ci = 0; ci < (int) cards.size(); ++ci) {
             auto& c = cards[(size_t) ci];
-            ui::panel(g, c.r, c.title);
-            if (c.live) {                        // (the part the FM-1 shows)
-                g.setColour(sk.accent.withAlpha(0.8f));
-                g.drawRect(c.r, 1.5f);
-            }
-            for (int pi = 0; pi < (int) c.ps.size(); ++pi) drawParam(g, c.ps[(size_t) pi], hoverCard == ci && hoverParam == pi);
+            ui::card(g, c.r, c.title, c.sub, c.chip, c.live);
+            for (int pi = 0; pi < (int) c.ps.size(); ++pi) drawParam(g, c, c.ps[(size_t) pi], hoverCard == ci && hoverParam == pi);
         }
         if (auto* f = focus >= 0 ? nth(focus) : nullptr) {   // (the keyboard's setting: a frame)
             g.setColour(sk.hot);
-            g.drawRect(f->row.expanded(4.0f, 2.0f), 1.5f);
+            g.drawRoundedRectangle(f->row.expanded(4.0f, 2.0f), 3.0f, 1.5f);
         }
         if (cards.empty()) {
             g.setColour(sk.dim);
@@ -594,92 +1028,180 @@ struct MenuContent : Part
     }
     juce::String optAt(const Param& q, int i) const
     {
+        if (q.fxPick) return i >= 0 && i < ed.parts.fx.size() ? ed.parts.fx[i] : juce::String();
         auto it = ed.opts.find(q.key);
         return it != ed.opts.end() && i >= 0 && i < it->second.v.size() ? it->second.v[i] : juce::String();
     }
-    void drawParam(juce::Graphics& g, const Param& q, bool hover)
+    juce::Rectangle<float> tileR(const Param& q, int i) const
+    {
+        const int cols = juce::jmin(5, q.n), row = i / cols, col = i % cols;
+        const float w = (q.ctl.getWidth() - 4.0f * (cols - 1)) / cols;
+        return { q.ctl.getX() + col * (w + 4.0f), q.ctl.getY() + row * (TILE_H + 4.0f), w, TILE_H };
+    }
+    static int listCols(const Param& q) { return q.n > 16 ? 2 : 1; }
+    juce::Rectangle<float> listR(const Param& q, int i) const
+    {
+        const int cols = listCols(q), per = (q.n + cols - 1) / cols;
+        const float rh = juce::jlimit(17.0f, 26.0f, q.ctl.getHeight() / (float) juce::jmax(1, per));
+        const float w = (q.ctl.getWidth() - 4.0f * (cols - 1)) / cols;
+        return { q.ctl.getX() + (i / per) * (w + 4.0f), q.ctl.getY() + (i % per) * rh, w, rh - 2.0f };
+    }
+    void drawParam(juce::Graphics& g, const Card& c, const Param& q, bool hover)
     {
         const auto& sk = s();
+        const juce::Colour tint = c.chip.isTransparent() ? sk.accent : c.chip;
+        if (c.rings) {                           // a knob: its arc, its value in it, its name under
+            const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
+            const auto r = q.ctl.reduced(6.0f);
+            const float a0 = juce::MathConstants<float>::pi * 1.25f, span = juce::MathConstants<float>::pi * 1.5f;
+            juce::Path bg, val;
+            bg.addCentredArc(r.getCentreX(), r.getCentreY(), r.getWidth() * 0.5f, r.getHeight() * 0.5f, 0.0f, -a0 + juce::MathConstants<float>::twoPi, -a0 + juce::MathConstants<float>::twoPi + span, true);
+            g.setColour(sk.panel2.brighter(0.08f));
+            g.strokePath(bg, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            if (t > 0.001f && ! (q.off >= 0 && q.cur == q.off)) {
+                val.addCentredArc(r.getCentreX(), r.getCentreY(), r.getWidth() * 0.5f, r.getHeight() * 0.5f, 0.0f, -a0 + juce::MathConstants<float>::twoPi, -a0 + juce::MathConstants<float>::twoPi + span * t, true);
+                g.setColour(hover || dragP == &q ? sk.hot : sk.ink);
+                g.strokePath(val, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            }
+            g.setColour(q.off >= 0 && q.cur == q.off ? sk.dim : sk.ink);
+            ui::fitText(g, q.val, r.reduced(10.0f), ui::value(18.0f));
+            g.setColour(sk.dim);
+            g.setFont(ui::labelBold(8.5f));
+            g.drawText("K" + juce::String(q.knob + 1), juce::Rectangle<float>(q.row.getX(), q.ctl.getBottom() + 2.0f, q.row.getWidth(), 14.0f), juce::Justification::centred);
+            g.setColour(sk.ink);
+            ui::fitText(g, q.name, juce::Rectangle<float>(q.row.getX(), q.ctl.getBottom() + 16.0f, q.row.getWidth(), 20.0f), ui::labelBold(11.0f));
+            return;
+        }
+        if (c.faders) {                          // a fader: filled from below, the layer's colour (SUB red ...)
+            const auto lc = ui::layer(q.name);
+            const auto col = lc.isTransparent() ? sk.ink : lc;
+            const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
+            auto tr = q.ctl;
+            g.setColour(sk.panel2);
+            g.fillRoundedRectangle(tr, 3.0f);
+            g.setColour(col.withAlpha(hover || dragP == &q ? 0.75f : 0.6f));
+            g.fillRoundedRectangle(tr.withTop(tr.getBottom() - tr.getHeight() * t), 3.0f);
+            for (int k = 1; k < 10; ++k) {       // (its scale)
+                g.setColour(sk.bg.withAlpha(0.35f));
+                g.fillRect(tr.getX(), tr.getBottom() - tr.getHeight() * k / 10.0f, tr.getWidth() * (k % 5 ? 0.25f : 0.5f), 1.0f);
+            }
+            g.setColour(sk.hot);
+            g.fillRect(tr.getX() - 4.0f, tr.getBottom() - tr.getHeight() * t - 1.5f, tr.getWidth() + 8.0f, 3.0f);
+            g.setColour(sk.ink);
+            ui::fitText(g, q.val, q.row.withHeight(22.0f), ui::value(17.0f));
+            g.setColour(lc.isTransparent() ? sk.dim : lc);
+            ui::fitText(g, q.name, q.row.withTop(q.row.getBottom() - 20.0f), ui::labelBold(9.5f));
+            return;
+        }
+        if (q.listed) {                          // a list, whole: each value a row, the one in use lit
+            for (int i = 0; i < q.n; ++i) {
+                auto r = listR(q, i);
+                const bool on = i == q.cur, hv = hover && hoverOpt == i;
+                g.setColour(on ? sk.ink : hv ? sk.panel2.brighter(0.06f) : sk.panel);
+                g.fillRoundedRectangle(r, 3.0f);
+                g.setColour(on ? sk.bg.withAlpha(0.6f) : sk.dim.withAlpha(0.7f));
+                g.setFont(ui::label(8.5f));
+                g.drawText(juce::String(i + 1), r.withWidth(26.0f), juce::Justification::centred);
+                g.setColour(on ? sk.bg : sk.ink.withAlpha(0.9f));
+                const auto v = optAt(q, i);
+                const bool icon = q.fxPick && iconAt(v, 0.5f).has_value();
+                ui::fitText(g, v, r.withTrimmedLeft(28.0f).withTrimmedRight(icon ? 50.0f : 8.0f), ui::labelBold(juce::jmin(10.5f, r.getHeight() * 0.45f)), juce::Justification::centredLeft);
+                if (icon) drawIcon(g, v, r.withLeft(r.getRight() - 46.0f).reduced(4.0f, 3.0f), on ? sk.bg : sk.dim.withAlpha(0.7f));
+            }
+            return;
+        }
         g.setColour(hover ? sk.ink : sk.dim);
-        ui::fitText(g, q.name, q.row.withWidth(q.ctl.getX() - q.row.getX() - 6.0f), ui::label(12.5f), juce::Justification::centredLeft);
+        if (q.tiles) {
+            ui::fitText(g, q.name, q.row.withHeight(16.0f), ui::label(9.0f), juce::Justification::centredLeft);
+            for (int i = 0; i < q.n; ++i) {
+                auto r = tileR(q, i);
+                const bool on = i == q.cur, hv = hover && hoverOpt == i;
+                g.setColour(on ? sk.panel2.brighter(0.08f) : hv ? sk.panel2.brighter(0.04f) : sk.panel2);
+                g.fillRoundedRectangle(r, 3.0f);
+                g.setColour(on ? sk.ink : sk.line);
+                g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, on ? 1.5f : 1.0f);
+                drawIcon(g, optAt(q, i), r.withTrimmedBottom(16.0f).reduced(10.0f, 5.0f), on ? tint.brighter(0.2f) : sk.dim.withAlpha(0.7f));
+                g.setColour(on ? sk.hot : sk.dim);
+                ui::fitText(g, optAt(q, i), r.withTrimmedTop(r.getHeight() - 17.0f).reduced(3.0f, 0.0f), ui::labelBold(8.5f));
+            }
+            return;
+        }
+        ui::fitText(g, q.name, q.row.withWidth(q.ctl.getX() - q.row.getX() - 6.0f), ui::label(10.0f), juce::Justification::centredLeft);
         auto r = q.ctl;
+        const float th = juce::jmin(26.0f, r.getHeight() - 6.0f);
         switch (q.kind) {
         case menus::Toggle:
         case menus::Segments: {
-            const float w = r.getWidth() / q.n;
-            for (int i = 0; i < q.n; ++i)
-                ui::button(g, { r.getX() + i * w + (i ? 1.0f : 0.0f), r.getY() + 4.0f, w - 2.0f, r.getHeight() - 8.0f },
-                           optAt(q, i), i == q.cur, false, 11.5f);
+            auto b = r.withSizeKeepingCentre(r.getWidth(), th);
+            const float w = b.getWidth() / q.n;
+            for (int i = 0; i < q.n; ++i) {
+                juce::Rectangle<float> cell(b.getX() + i * w + (i ? 1.5f : 0.0f), b.getY(), w - 3.0f, b.getHeight());
+                const bool on = i == q.cur;
+                g.setColour(on ? sk.ink : sk.panel2);
+                g.fillRoundedRectangle(cell, 2.5f);
+                if (! on) { g.setColour(sk.line); g.drawRoundedRectangle(cell.reduced(0.5f), 2.5f, 1.0f); }
+                g.setColour(on ? sk.bg : sk.dim.brighter(0.2f));
+                ui::fitText(g, optAt(q, i), cell.reduced(3.0f, 0.0f), ui::labelBold(9.0f));
+            }
             break;
         }
         case menus::Slider: {
-            auto tr = r.reduced(0.0f, 5.0f);
+            auto tr = r.withSizeKeepingCentre(r.getWidth(), th);
             g.setColour(sk.panel2);
-            g.fillRect(tr);
+            g.fillRoundedRectangle(tr, 2.5f);
             const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
-            if (q.off >= 0) {                    // the OFF stretch: a shade, its edges a soft shadow
-                const float c = unitsAt(q, q.off);
-                const float x0 = tr.getX() + tr.getWidth() * frac(q, c - q.offW * 0.5f), x1 = tr.getX() + tr.getWidth() * frac(q, c + q.offW * 0.5f);
-                juce::Rectangle<float> band(x0, tr.getY(), x1 - x0, tr.getHeight());
-                g.setColour(sk.bg.withAlpha(0.55f));
-                g.fillRect(band);
-                for (int side = 0; side < 2; ++side) {
-                    const float ex = side ? band.getRight() : band.getX(), w = juce::jmin(8.0f, band.getWidth() * 0.3f);
-                    juce::ColourGradient gr(sk.bg.withAlpha(0.65f), ex, 0.0f, sk.bg.withAlpha(0.0f), side ? ex - w : ex + w, 0.0f, false);
-                    g.setGradientFill(gr);
-                    g.fillRect(side ? juce::Rectangle<float>(ex - w, band.getY(), w, band.getHeight()) : juce::Rectangle<float>(ex, band.getY(), w, band.getHeight()));
-                    g.setColour(sk.line.brighter(0.15f));
-                    g.fillRect(ex - 0.5f, band.getY(), 1.0f, band.getHeight());
-                }
-                if (band.getWidth() > 26.0f && q.cur != q.off) {
-                    g.setColour(sk.dim.withAlpha(0.8f));
-                    g.setFont(ui::label(10.0f));
-                    g.drawText("OFF", band, juce::Justification::centred);
-                }
+            float from = 0.0f;
+            if (q.off >= 0) {                    // the OFF stretch: hatched, its edge a soft shadow
+                const float o = unitsAt(q, q.off);
+                const float x0 = tr.getX() + tr.getWidth() * frac(q, o - q.offW * 0.5f), x1 = tr.getX() + tr.getWidth() * frac(q, o + q.offW * 0.5f);
+                ui::hatch(g, { x0, tr.getY(), x1 - x0, tr.getHeight() });
+                from = frac(q, o);
             }
-            g.setColour(sk.accent.withAlpha(hover || dragP == &q ? 0.55f : 0.38f));
-            if (q.off >= 0) {                    // (filled from OFF: in its middle, a bipolar one; at an end, from that end)
-                const float o = frac(q, unitsAt(q, q.off));
-                g.fillRect(juce::Rectangle<float>(tr.getX() + tr.getWidth() * juce::jmin(o, t), tr.getY(), tr.getWidth() * std::abs(t - o), tr.getHeight()));
-            } else
-                g.fillRect(tr.withWidth(juce::jmax(2.0f, tr.getWidth() * t)));
+            if (q.centre >= 0) {                 // both ways: its middle marked, filled from it
+                from = frac(q, unitsAt(q, q.centre));
+                g.setColour(sk.line.brighter(0.3f));
+                g.fillRect(tr.getX() + tr.getWidth() * from - 0.5f, tr.getY(), 1.0f, tr.getHeight());
+            }
+            const bool isOff = q.off >= 0 && q.cur == q.off;
+            if (! isOff) {
+                g.setColour(tint.withAlpha(hover || dragP == &q ? 0.5f : 0.34f));
+                g.fillRect(juce::Rectangle<float>(tr.getX() + tr.getWidth() * juce::jmin(from, t), tr.getY() + 1.0f, tr.getWidth() * std::abs(t - from), tr.getHeight() - 2.0f));
+            }
             if (q.n <= 33)                       // (few steps: each one marked)
                 for (int i = 1; i < q.n - 1; ++i) {
                     g.setColour(sk.line.withAlpha(0.8f));
-                    g.fillRect(tr.getX() + tr.getWidth() * frac(q, unitsAt(q, i)), tr.getBottom() - 5.0f, 1.0f, 5.0f);
+                    g.fillRect(tr.getX() + tr.getWidth() * frac(q, unitsAt(q, i)), tr.getBottom() - 4.0f, 1.0f, 4.0f);
                 }
             g.setColour(sk.hot);
-            g.fillRect(tr.getX() + tr.getWidth() * t - 1.0f, tr.getY(), 3.0f, tr.getHeight());
-            g.setColour(sk.line);
-            g.drawRect(tr, 1.0f);
-            g.setColour(sk.ink);
-            ui::fitText(g, q.val, tr.reduced(8.0f, 0.0f), ui::value(19.0f), juce::Justification::centredRight);
+            g.fillRect(tr.getX() + tr.getWidth() * t - 1.0f, tr.getY(), 2.0f, tr.getHeight());
+            g.setColour(isOff ? sk.dim : sk.ink);
+            ui::fitText(g, q.val, tr.reduced(8.0f, 0.0f), ui::value(16.0f), juce::Justification::centredRight);
             break;
         }
         case menus::List: {
-            auto b = r.reduced(0.0f, 4.0f);
+            auto b = r.withSizeKeepingCentre(r.getWidth(), th);
             g.setColour(hover ? sk.panel2.brighter(0.08f) : sk.panel2);
-            g.fillRect(b);
+            g.fillRoundedRectangle(b, 2.5f);
             g.setColour(sk.line);
-            g.drawRect(b, 1.0f);
+            g.drawRoundedRectangle(b.reduced(0.5f), 2.5f, 1.0f);
             g.setColour(sk.ink);
-            ui::fitText(g, q.val, b.reduced(10.0f, 0.0f).withTrimmedRight(18.0f), ui::value(19.0f), juce::Justification::centredLeft);
+            ui::fitText(g, q.val, b.reduced(10.0f, 0.0f).withTrimmedRight(18.0f), ui::value(16.0f), juce::Justification::centredLeft);
             juce::Path tri;
             const float cx = b.getRight() - 14.0f, cy = b.getCentreY();
-            tri.addTriangle(cx - 5.0f, cy - 3.0f, cx + 5.0f, cy - 3.0f, cx, cy + 4.0f);
-            g.setColour(sk.accent);
+            tri.addTriangle(cx - 4.0f, cy - 2.5f, cx + 4.0f, cy - 2.5f, cx, cy + 3.5f);
+            g.setColour(sk.dim);
             g.fillPath(tri);
             break;
         }
         default: {                                // (not looked at yet, or one value): its value, < > if it moves
-            auto b = r.reduced(0.0f, 4.0f);
+            auto b = r.withSizeKeepingCentre(r.getWidth(), th);
             if (q.kind == menus::Unknown) {
-                ui::button(g, b.withWidth(26.0f), "<", false, false, 13.0f);
-                ui::button(g, b.withLeft(b.getRight() - 26.0f), ">", false, false, 13.0f);
+                ui::button(g, b.withWidth(26.0f), "<", false, false, 11.0f);
+                ui::button(g, b.withLeft(b.getRight() - 26.0f), ">", false, false, 11.0f);
                 b = b.reduced(30.0f, 0.0f);
             }
             g.setColour(sk.ink);
-            ui::fitText(g, q.val, b, ui::value(19.0f));
+            ui::fitText(g, q.val, b, ui::value(16.0f));
         }
         }
     }
@@ -692,18 +1214,32 @@ struct MenuContent : Part
         return { -1, -1 };
     }
     Param* at(std::pair<int, int> h) { return h.first < 0 ? nullptr : &cards[(size_t) h.first].ps[(size_t) h.second]; }
+    int optHit(const Param& q, juce::Point<float> p) const
+    {
+        if (q.tiles) { for (int i = 0; i < q.n; ++i) if (tileR(q, i).contains(p)) return i; }
+        else if (q.listed) { for (int i = 0; i < q.n; ++i) if (listR(q, i).contains(p)) return i; }
+        return -1;
+    }
     void mouseMove(const juce::MouseEvent& e) override
     {
         auto h = hit(e.position);
-        if (h.first != hoverCard || h.second != hoverParam) { hoverCard = h.first; hoverParam = h.second; repaint(); }
         auto* q = at(h);
-        setMouseCursor(q && q->kind == menus::Slider && q->ctl.contains(e.position) ? juce::MouseCursor::LeftRightResizeCursor
-                                                                                     : juce::MouseCursor::NormalCursor);
+        const int o = q ? optHit(*q, e.position) : -1;
+        if (h.first != hoverCard || h.second != hoverParam || o != hoverOpt) { hoverCard = h.first; hoverParam = h.second; hoverOpt = o; repaint(); }
+        setMouseCursor(q && q->kind == menus::Slider && ! q->tiles && q->ctl.contains(e.position) ? (cardOf(q) && cardOf(q)->faders ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::LeftRightResizeCursor)
+                       : q && (q->tiles || q->listed) && o >= 0 ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
     }
-    void mouseExit(const juce::MouseEvent&) override { hoverCard = hoverParam = -1; repaint(); }
+    void mouseExit(const juce::MouseEvent&) override { hoverCard = hoverParam = hoverOpt = -1; repaint(); }
     // to value i: the steps from where it is (a list that goes round: the short way)
     void go(Param& q, int i)
     {
+        if (q.fxPick) {                          // (the effect: PRESETS turned by the difference)
+            i = juce::jlimit(0, q.n - 1, i);
+            if (i != q.cur) ed.turn(LB_PRESET, i - q.cur);
+            q.cur = i;
+            repaint();
+            return;
+        }
         if (q.kind == menus::Unknown) return;
         i = q.wrap ? (i % q.n + q.n) % q.n : juce::jlimit(0, q.n - 1, i);
         int d = i - q.cur;
@@ -736,6 +1272,7 @@ struct MenuContent : Part
         auto* q = at(hit(e.position));
         if (! q || ! q->ctl.contains(e.position)) return;
         if (e.mods.isPopupMenu() && q->n > 1) { listMenu(*q); return; }
+        if (q->tiles || q->listed) { const int o = optHit(*q, e.position); if (o >= 0) go(*q, o); return; }
         switch (q->kind) {
         case menus::Toggle:
             if (q->n == 2) { go(*q, (int) ((e.position.x - q->ctl.getX()) / (q->ctl.getWidth() / 2))); }
@@ -744,10 +1281,15 @@ struct MenuContent : Part
         case menus::List: listMenu(*q); break;
         case menus::Slider:
             dragP = q;
+            dragV = cardOf(q) != nullptr && cardOf(q)->faders;
+            if (dragV) {                         // (a fader: clicked where it should be)
+                const float t = juce::jlimit(0.0f, 1.0f, (q->ctl.getBottom() - e.position.y) / q->ctl.getHeight());
+                go(*q, indexAtUnits(*q, unitsAt(*q, 0) + t * unitsAll(*q)));
+            }
             dragFrom = dragSent = q->cur;
             dragU = unitsAt(*q, q->cur);
             // the steps' width: few steps wide, many narrow (the whole range over about the slider and a half)
-            pxStep = juce::jlimit(2.5f, 28.0f, q->ctl.getWidth() * 1.4f / unitsAll(*q));   // (a unit's pixels)
+            pxStep = juce::jlimit(2.5f, 28.0f, (dragV ? q->ctl.getHeight() : q->ctl.getWidth() * 1.4f) / unitsAll(*q));   // (a unit's pixels)
             break;
         case menus::Unknown:
             nudge(*q, e.position.x < q->ctl.getCentreX() ? -1 : 1);
@@ -758,7 +1300,8 @@ struct MenuContent : Part
     void mouseDrag(const juce::MouseEvent& e) override
     {
         if (! dragP) return;
-        const float dx = (float) e.getDistanceFromDragStartX() - (float) e.getDistanceFromDragStartY() * 0.5f;
+        const float dx = dragV ? (float) -e.getDistanceFromDragStartY()
+                               : (float) e.getDistanceFromDragStartX() - (float) e.getDistanceFromDragStartY() * 0.5f;
         const float slow = e.mods.isShiftDown() ? 4.0f : 1.0f;
         const int want = juce::jlimit(0, dragP->n - 1, indexAtUnits(*dragP, dragU + dx / (pxStep * slow)));
         if (want != dragSent) { go(*dragP, want); dragSent = want; }
@@ -767,8 +1310,9 @@ struct MenuContent : Part
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
         auto* q = at(hit(e.position));
-        if (q && q->kind == menus::Slider && q->ctl.contains(e.position)) {
-            if (q->off >= 0) go(*q, q->off);     // (a double click: back to OFF; every value: a right click)
+        if (q && q->kind == menus::Slider && ! q->tiles && q->ctl.contains(e.position)) {
+            if (q->off >= 0) go(*q, q->off);     // (a double click: back to OFF, or to the middle; every value: a right click)
+            else if (q->centre >= 0) go(*q, q->centre);
             else listMenu(*q);
         }
     }
@@ -788,7 +1332,7 @@ struct MenuContent : Part
         const juce::String key = q.key;
         juce::Component::SafePointer<MenuContent> self(this);
         pm.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(localAreaToGlobal(q.ctl.toNearestInt()))
-                             .withMinimumWidth((int) q.ctl.getWidth()).withStandardItemHeight(22),
+                             .withMinimumWidth((int) juce::jmin(300.0f, q.ctl.getWidth())).withStandardItemHeight(22),
                          [self, key](int r) {
                              if (! self || r <= 0) return;
                              for (auto& c : self->cards) for (auto& p : c.ps) if (p.key == key) { self->go(p, r - 1); return; }
@@ -811,6 +1355,7 @@ struct MenuPage : Part
     {
         view.setBounds(getLocalBounds());
         content.availW = getWidth() - 12;
+        content.availH = getHeight();
         content.rebuild();
     }
 };
@@ -1615,17 +2160,58 @@ struct Machine : Part
 };
 
 // ---------------------------------------------------------------------------------------------------- pads ---
+// the 12 black keys (and REC) and the 16 slices: folded to a strip under the menus (the menus' room), or open, big
 struct Pads : Part
 {
     explicit Pads(LBE& e) : Part(e) {}
-    int held = -1;                       // 0..15 white, 100.. black
-    juce::Rectangle<float> white(int i) const { const float w = (W - 40.0f) / 16.0f; return { 20.0f + i * w, 108.0f, w - 6.0f, 70.0f }; }
-    juce::Rectangle<float> black(int i) const { const float w = (W - 40.0f) / 12.0f; return { 20.0f + i * w, 24.0f, w - 6.0f, 64.0f }; }
+    int held = -1;
+    bool compact() const { return ! ed.padsOpen; }
+    juce::Rectangle<float> fold() const { return compact() ? juce::Rectangle<float>(6, 8, 92, 32) : juce::Rectangle<float>(W - 16 - 110, 4, 96, 18); }
+    juce::Rectangle<float> white(int i) const
+    {
+        if (compact()) { const float x0 = 108.0f + 12 * 50.0f + 14.0f, w = ((float) getWidth() - x0 - 8.0f) / 16.0f; return { x0 + i * w, 9.0f, w - 4.0f, 30.0f }; }
+        const float w = ((float) getWidth() - 40.0f) / 16.0f; return { 20.0f + i * w, 108.0f, w - 6.0f, 70.0f };
+    }
+    juce::Rectangle<float> black(int i) const
+    {
+        if (compact()) return { 108.0f + i * 50.0f, 9.0f, 46.0f, 30.0f };
+        const float w = ((float) getWidth() - 40.0f) / 12.0f; return { 20.0f + i * w, 24.0f, w - 6.0f, 64.0f };
+    }
     void paint(juce::Graphics& g) override
     {
         const auto& sk = s();
-        ui::panel(g, getLocalBounds().toFloat().reduced(1.0f), "PADS  /  TOUCHES");
         auto& km = KeyMap::get();
+        if (compact()) {
+            g.setColour(sk.bg.brighter(0.025f));
+            g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
+            g.setColour(sk.line.withAlpha(0.7f));
+            g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
+            g.setColour(sk.dim);
+            g.setFont(ui::labelBold(9.0f).withExtraKerningFactor(0.14f));
+            g.drawText(juce::CharPointer_UTF8("PADS  \xe2\x96\xb4"), fold(), juce::Justification::centred);
+            for (int i = 0; i < 12; ++i) {
+                auto r = black(i);
+                const bool on = ed.m.padon[i] || held == 100 + i;
+                g.setColour(on ? sk.accent : sk.panel2);
+                g.fillRoundedRectangle(r, 2.0f);
+                g.setColour(on ? sk.bg : sk.ink.withAlpha(0.8f));
+                ui::fitText(g, ed.m.pad[i], r.reduced(3, 0), ui::labelBold(9.5f));
+            }
+            for (int i = 0; i < 16; ++i) {
+                auto r = white(i);
+                const bool on = ed.m.key == i || held == i || (ed.m.slice == i && ed.m.playing);
+                g.setColour(on ? sk.hot : sk.panel2.brighter(0.03f));
+                g.fillRoundedRectangle(r, 2.0f);
+                g.setColour(on ? sk.bg : sk.dim);
+                g.setFont(ui::labelBold(9.5f));
+                g.drawText(juce::String(i + 1), r, juce::Justification::centred);
+            }
+            return;
+        }
+        ui::panel(g, getLocalBounds().toFloat().reduced(1.0f), "PADS  /  TOUCHES");
+        g.setColour(sk.dim);
+        g.setFont(ui::labelBold(8.5f));
+        g.drawText(juce::CharPointer_UTF8("REPLIER  \xe2\x96\xbe"), fold(), juce::Justification::centredRight);
         for (int i = 0; i < 12; ++i) {
             auto r = black(i);
             const bool on = ed.m.padon[i] || held == 100 + i;
@@ -1658,21 +2244,28 @@ struct Pads : Part
     }
     int hit(juce::Point<float> p) const
     {
+        if (fold().contains(p)) return 999;
         for (int i = 0; i < 12; ++i) if (black(i).contains(p)) return 100 + i;
         for (int i = 0; i < 16; ++i) if (white(i).contains(p)) return i;
         return -1;
     }
     void press(int h, bool d)
     {
-        if (h < 0) return;
+        if (h < 0 || h == 999) return;
         if (h >= 100) { if (h == 111) ed.hold(LB_REC, d); else ed.key(true, h - 100, d); }
         else ed.key(false, h, d);
     }
-    void mouseDown(const juce::MouseEvent& e) override { held = hit(e.position); press(held, true); repaint(); }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        held = hit(e.position);
+        if (held == 999) { held = -1; ed.togglePads(); return; }
+        press(held, true);
+        repaint();
+    }
     void mouseDrag(const juce::MouseEvent& e) override
     {
         const int h = hit(e.position);
-        if (h != held) { press(held, false); held = h; press(held, true); repaint(); }
+        if (h != held && h != 999) { press(held, false); held = h; press(held, true); repaint(); }
     }
     void mouseUp(const juce::MouseEvent&) override { press(held, false); held = -1; repaint(); }
 };
@@ -1723,9 +2316,9 @@ struct MachineWindow : juce::DocumentWindow
 // ---------------------------------------------------------------------------------------------------- root ---
 struct LoafBreakerEditor::Root : Part
 {
-    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), menus(e), seqp(e), song(e), machine(e), pads(e)
+    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), hero(e), menus(e), seqp(e), song(e), machine(e), pads(e)
     {
-        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &menus, &seqp, &song, &pads, &machine })
+        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &hero, &menus, &seqp, &song, &pads, &machine })
             addAndMakeVisible(c);
         setSize(W, H);
         auto box = juce::Rectangle<int>::fromString(ui::settings().getUserSettings()->getValue("machineBox"));
@@ -1736,12 +2329,17 @@ struct LoafBreakerEditor::Root : Part
     Categories cats;
     Tabs tabs;
     WavePanel wave;
+    SoundHero hero;
     MenuPage menus;
     SeqPanel seqp;
     SongPanel song;
     Machine machine;
     Pads pads;
     bool seqShown = false, songShown = false;
+    int heroShown = -1;                  // (LBE::heroKind: -1 none, 0 the kick, 1..3 a drum, 9 the break)
+    bool padsShown = false;
+    // (FLEXOR, 25 Nov 2026: the mockup's A, "c'est la bonne direction"): the header, the domains, the tabs; the sound
+    // drawn big (the kick, a drum, or the break); the page's parts as cards; the pads folded to a strip under them
     void resized() override
     {
         header.setBounds(0, 0, W, 86);
@@ -1749,18 +2347,26 @@ struct LoafBreakerEditor::Root : Part
         tabs.setBounds(0, 130, W, 36);
         seqShown = ed.seqView();
         songShown = ed.songView();
+        heroShown = ed.heroKind();
+        padsShown = ed.padsOpen;
         ed.proc.tracksWanted = songShown;
-        wave.setVisible(! seqShown && ! songShown);
-        menus.setVisible(! seqShown);
+        const int bottom = padsShown ? 686 : 836;           // (the menus' foot)
+        pads.setBounds(8, padsShown ? 690 : 844, W - 16, padsShown ? 202 : 48);
+        hero.what = heroShown >= 0 && heroShown <= 3 ? heroShown : 0;
+        hero.setVisible(heroShown >= 0 && heroShown <= 3);
+        wave.setVisible(heroShown == 9);
+        hero.setBounds(8, 174, W - 16, 260);
+        wave.setBounds(8, 174, W - 16, 260);
         seqp.setVisible(seqShown);
         song.setVisible(songShown);
-        wave.setBounds(8, 172, W - 16, 104);
-        song.setBounds(8, 172, W - 16, 380);
-        menus.setBounds(8, songShown ? 558 : 282, W - 16, songShown ? 128 : 404);
-        seqp.setBounds(8, 172, W - 16, 514);
+        menus.setVisible(! seqShown);
+        seqp.setBounds(8, 174, W - 16, bottom - 174);
+        song.setBounds(8, 174, W - 16, 380);
+        if (songShown) menus.setBounds(8, 562, W - 16, juce::jmax(100, bottom - 562));
+        else if (heroShown < 0) menus.setBounds(8, 174, W - 16, bottom - 174);
+        else menus.setBounds(8, 444, W - 16, bottom - 444);
         machine.setVisible(ed.showMachine && ! ed.machineSep);
         machine.toFront(false);
-        pads.setBounds(8, 690, W - 16, 202);
     }
     void paint(juce::Graphics& g) override { g.fillAll(s().bg); }
     void paintOverChildren(juce::Graphics& g) override
@@ -1775,6 +2381,7 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
 {
     showMachine = ui::settings().getUserSettings()->getBoolValue("machine", true);
     machineSep = ui::settings().getUserSettings()->getBoolValue("machineSep", false);
+    padsOpen = ui::settings().getUserSettings()->getBoolValue("padsOpen", false);
     root = std::make_unique<Root>(*this);
     addAndMakeVisible(*root);
     setWantsKeyboardFocus(true);
@@ -1823,9 +2430,10 @@ void LoafBreakerEditor::timerCallback()
         root->tabs.repaint();
         root->pads.repaint();
         root->wave.repaint();
+        root->hero.repaint();
         if (ui::fm1SkinIs(m.skin)) root->repaint();   // (the VST follows the FM-1's skin: it changed)
         if (juce::String(m.dom) != lastDom) { lastDom = m.dom; opts.clear(); asked.clear(); }   // (another domain: its lists looked at again)
-        if (seqView() != root->seqShown || songView() != root->songShown) root->resized();
+        if (seqView() != root->seqShown || songView() != root->songShown || heroKind() != root->heroShown) root->resized();
         // a source asked for (SOUNDS: KICK, DRUMS, BREAK): SEL + EDIT until it is the one
         if (pendingSource.isNotEmpty()) {
             if (juce::String(m.label) == pendingSource || ++sourceTries > 4) pendingSource.clear();
@@ -1838,6 +2446,14 @@ void LoafBreakerEditor::timerCallback()
     }
     if (proc.partsIfNew(partsSerial, parts))
         root->menus.content.update();
+    {                                    // the sound's picture: wanted while it is shown, its view's columns and time
+        const int hk = heroKind();
+        if (hk >= 0 && hk <= 3) {
+            proc.picWant(hk, root->hero.ms(), 1000);
+            if (proc.picIfNew(picSerial, pic)) root->hero.repaint();
+        } else
+            proc.picWant(-1, 0, 0);
+    }
     // the answers awaited: each setting's values
     for (auto it = asked.begin(); it != asked.end();) {
         lb_opts_t* o = optBuf.get();
@@ -1847,6 +2463,17 @@ void LoafBreakerEditor::timerCallback()
             for (int i = 0; i < o->n; ++i) v.v.add(juce::String(o->v[i]));
             v.wrap = o->wrap != 0;
             v.more = o->more != 0;
+            if (v.wrap && v.v.size() > 2) {   // (a list that goes round starts where the FM-1 is: shown from its natural
+                                              // first, 909, or number 1)
+                int at = -1;
+                for (int i = 0; i < v.v.size() && at < 0; ++i)
+                    if (v.v[i].trim() == "909" || v.v[i].trim().endsWith(" 1") || v.v[i].trim() == "1") at = i;
+                if (at > 0) {
+                    juce::StringArray r;
+                    for (int i = 0; i < v.v.size(); ++i) r.add(v.v[(at + i) % v.v.size()]);
+                    v.v = r;
+                }
+            }
             opts[it->second] = v;
         }
         it = asked.erase(it);
@@ -1881,6 +2508,22 @@ void LoafBreakerEditor::wantOptions(int part, int knob)
     if (asked.size() >= 12) return;
     const int id = proc.askOptions(part, knob, p.part, p.kname[knob & 3]);
     if (id > 0) asked[id] = key;
+}
+int LoafBreakerEditor::heroKind() const
+{
+    const juce::String d(m.dom), l(m.label);
+    if (seqView()) return -1;
+    if (songView()) return -1;
+    if (d == "SOUNDS" && l == "KICK") return 0;
+    if (d == "SOUNDS" && l == "DRUMS") return juce::jlimit(1, 3, m.tab_on + 1);
+    return 9;
+}
+void LoafBreakerEditor::togglePads()
+{
+    padsOpen = ! padsOpen;
+    ui::settings().getUserSettings()->setValue("padsOpen", padsOpen);
+    root->resized();
+    root->repaint();
 }
 bool LoafBreakerEditor::songView() const
 {
