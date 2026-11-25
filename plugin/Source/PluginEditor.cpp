@@ -101,7 +101,7 @@ struct Header : Part
     {
         play->setBounds(380, 18, 110, 48);
         sync->setBounds(640, 46, 70, 20);
-        menu->setBounds(W - 96, 22, 80, 40);
+        menu->setBounds(getWidth() - 96, 22, 80, 40);
     }
     void paint(juce::Graphics& g) override
     {
@@ -155,7 +155,8 @@ struct Header : Part
         // the FM-1's message, or the VST's own
         juce::String a = m.say[0], b = m.say[1];
         if (juce::Time::getMillisecondCounterHiRes() < ed.toastUntil) { a = ed.toastText; b = {}; }
-        juce::Rectangle<float> msg(1036, 14, 210, 56);
+        const float dxr = (float) getWidth() - (float) W;   // (the right side follows the window's width)
+        juce::Rectangle<float> msg(1036 + dxr, 14, 210, 56);
         g.setColour(sk.panel);
         g.fillRect(msg);
         g.setColour(sk.line);
@@ -167,7 +168,7 @@ struct Header : Part
         // the meters
         for (int c = 0; c < 2; ++c) {
             const float v = c ? vr : vl, hld = c ? hr : hl;
-            juce::Rectangle<float> bar(1258.0f + c * 16.0f, 12, 12, 60);
+            juce::Rectangle<float> bar(1258.0f + dxr + c * 16.0f, 12, 12, 60);
             const int segs = 15;
             for (int i = 0; i < segs; ++i) {
                 const float t = (float) i / segs;
@@ -210,7 +211,7 @@ struct Categories : Part
         if (ed.m.tab_on >= 0 && ed.m.tab_on < ed.m.ntabs) path << "  /  " << ed.m.tabs[ed.m.tab_on];
         if (ed.m.part[0]) path << "  /  " << ed.m.part;
         g.setColour(sk.dim);
-        ui::fitText(g, path, { 1140.0f, 6.0f, 290.0f, 32.0f }, ui::label(10.0f), juce::Justification::centredRight);
+        ui::fitText(g, path, { (float) getWidth() - 300.0f, 6.0f, 290.0f, 32.0f }, ui::label(10.0f), juce::Justification::centredRight);
     }
     void mouseMove(const juce::MouseEvent& e) override { int h = hit(e.position); if (h != hover) { hover = h; repaint(); } }
     void mouseExit(const juce::MouseEvent&) override { hover = -1; repaint(); }
@@ -246,7 +247,7 @@ struct Tabs : Part
             const juce::String t = ed.m.tabs[i];
             const float w = juce::jmax(74.0f, juce::GlyphArrangement::getStringWidth(ui::label(11.0f), t) + 26.0f);
             juce::Rectangle<float> r(x, 4.0f, w, 26.0f);
-            if (r.getRight() > 1030.0f) break;
+            if (r.getRight() > (float) getWidth() - 410.0f) break;
             ui::button(g, r, t, i == ed.m.tab_on, hover == i, 11.0f);
             cells.push_back({ r, i });
             x += w + 4.0f;
@@ -267,7 +268,7 @@ struct Tabs : Part
     juce::Rectangle<float> tool(int i) const
     {
         static const float X[7] = { 1040, 1110, 1140, 1194, 1230, 1300, 1366 }, Wd[7] = { 64, 28, 52, 28, 64, 60, 60 };
-        return { X[i], 4.0f, Wd[i], 26.0f };
+        return { X[i] + (float) getWidth() - (float) W, 4.0f, Wd[i], 26.0f };
     }
     int hit(juce::Point<float> p) const { for (auto& c : cells) if (c.first.contains(p)) return c.second; return -9999; }
     void mouseMove(const juce::MouseEvent& e) override { int h = hit(e.position); if (h != hover) { hover = h; repaint(); } }
@@ -406,7 +407,9 @@ struct SoundHero : Part
 {
     explicit SoundHero(LBE& e) : Part(e) {}
     int what = 0;                         // 0 the kick, 1..3 SN HH CP
-    static constexpr float SW = 1032.0f, X0 = 16.0f, WW = 1000.0f, CY = 124.0f, A = 94.0f;
+    static constexpr float X0 = 16.0f, CY = 124.0f, A = 94.0f;
+    float SW = 1032.0f, WW = 1000.0f;    // (the picture's width: the window's, the card's 384 px beside it)
+    void resized() override { SW = (float) getWidth() - 392.0f; WW = SW - 32.0f; }
     static int autoMs(const juce::String& tab, int what)
     {
         if (what) return what == 2 ? 300 : 400;
@@ -855,6 +858,8 @@ struct MenuContent : Part
     float dragU = 0.0f;
     float pxStep = 8.0f;
     bool dragV = false;
+    juce::String dragKey;                // (FLEXOR: "des faders restent bloqués après avoir un peu bougé": the cards are
+                                         // laid out again while one is dragged; it is found again by its name)
     const Card* cardOf(const Param* q) const { for (auto& c : cards) for (auto& p : c.ps) if (&p == q) return &c; return nullptr; }
 
     int availW = 1400, availH = 390;
@@ -980,6 +985,8 @@ struct MenuContent : Part
         }
         setSize(availW, (int) bottom + 6);
         dragP = nullptr;
+        if (dragKey.isNotEmpty())
+            for (auto& c : cards) for (auto& q : c.ps) if (q.key == dragKey) dragP = &q;
         repaint();
     }
     void layoutCard(Card& c)
@@ -1454,6 +1461,7 @@ struct MenuContent : Part
         case menus::List: listMenu(*q); break;
         case menus::Slider:
             dragP = q;
+            dragKey = q->key;
             dragV = cardOf(q) != nullptr && cardOf(q)->faders;
             if (dragV) {                         // (a fader: clicked where it should be)
                 const float t = juce::jlimit(0.0f, 1.0f, (q->ctl.getBottom() - e.position.y) / q->ctl.getHeight());
@@ -1489,7 +1497,7 @@ struct MenuContent : Part
         const int want = juce::jlimit(0, dragP->n - 1, indexAtUnits(*dragP, dragU + dx / (pxStep * slow)));
         if (want != dragSent) { go(*dragP, want); dragSent = want; }
     }
-    void mouseUp(const juce::MouseEvent&) override { dragP = nullptr; eqDrag = -1; eqCardI = -1; repaint(); }
+    void mouseUp(const juce::MouseEvent&) override { dragP = nullptr; dragKey.clear(); eqDrag = -1; eqCardI = -1; repaint(); }
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
         auto* q = at(hit(e.position));
@@ -2382,7 +2390,7 @@ struct Pads : Part
     explicit Pads(LBE& e) : Part(e) {}
     int held = -1;
     bool compact() const { return ! ed.padsOpen; }
-    juce::Rectangle<float> fold() const { return compact() ? juce::Rectangle<float>(6, 8, 92, 32) : juce::Rectangle<float>(W - 16 - 110, 4, 96, 18); }
+    juce::Rectangle<float> fold() const { return compact() ? juce::Rectangle<float>(6, 8, 92, 32) : juce::Rectangle<float>((float) getWidth() - 110.0f, 4, 96, 18); }
     juce::Rectangle<float> white(int i) const
     {
         if (compact()) { const float x0 = 108.0f + 12 * 50.0f + 14.0f, w = ((float) getWidth() - x0 - 8.0f) / 16.0f; return { x0 + i * w, 9.0f, w - 4.0f, 30.0f }; }
@@ -2558,29 +2566,35 @@ struct LoafBreakerEditor::Root : Part
     // drawn big (the kick, a drum, or the break); the page's parts as cards; the pads folded to a strip under them
     void resized() override
     {
-        header.setBounds(0, 0, W, 86);
-        cats.setBounds(0, 86, W, 44);
-        tabs.setBounds(0, 130, W, 36);
+        // (FLEXOR: "le plein écran n'est pas adapté à un écran 16:9 ... adapté à tous les écrans"): the window's own shape,
+        // 1440 x 900 at least, the room past it given to the pictures and cards (wider) and to the menus (taller)
+        const int w = getWidth(), h = getHeight();
+        header.setBounds(0, 0, w, 86);
+        cats.setBounds(0, 86, w, 44);
+        tabs.setBounds(0, 130, w, 36);
         seqShown = ed.seqView();
         songShown = ed.songView();
         heroShown = ed.heroKind();
         padsShown = ed.padsOpen;
         ed.proc.tracksWanted = songShown;
-        const int bottom = padsShown ? 686 : 836;           // (the menus' foot)
-        pads.setBounds(8, padsShown ? 690 : 844, W - 16, padsShown ? 202 : 48);
+        const int bottom = padsShown ? h - 214 : h - 64;     // (the menus' foot)
+        pads.setBounds(8, padsShown ? h - 210 : h - 56, w - 16, padsShown ? 202 : 48);
         hero.what = heroShown >= 0 && heroShown <= 3 ? heroShown : 0;
         hero.setVisible(heroShown >= 0 && heroShown <= 3);
         wave.setVisible(heroShown == 9);
-        hero.setBounds(8, 174, W - 16, 260);
-        wave.setBounds(8, 174, W - 16, 260);
+        hero.setBounds(8, 174, w - 16, 260);
+        wave.setBounds(8, 174, w - 16, 260);
         seqp.setVisible(seqShown);
         song.setVisible(songShown);
         menus.setVisible(! seqShown);
-        seqp.setBounds(8, 174, W - 16, bottom - 174);
-        song.setBounds(8, 174, W - 16, 380);
-        if (songShown) menus.setBounds(8, 562, W - 16, juce::jmax(100, bottom - 562));
-        else if (heroShown < 0) menus.setBounds(8, 174, W - 16, bottom - 174);
-        else menus.setBounds(8, 444, W - 16, bottom - 444);
+        seqp.setBounds(8, 174, w - 16, bottom - 174);
+        const int songH = juce::jmax(380, (bottom - 174) * 55 / 100);
+        song.setBounds(8, 174, w - 16, songH);
+        if (songShown) menus.setBounds(8, 174 + songH + 8, w - 16, juce::jmax(100, bottom - 174 - songH - 8));
+        else if (heroShown < 0) menus.setBounds(8, 174, w - 16, bottom - 174);
+        else menus.setBounds(8, 444, w - 16, bottom - 444);
+        auto mb = machine.getBounds();           // (the FM-1's screen kept inside)
+        if (! getLocalBounds().contains(mb)) machine.setTopLeftPosition(juce::jlimit(0, juce::jmax(0, w - mb.getWidth()), mb.getX()), juce::jlimit(0, juce::jmax(0, h - mb.getHeight()), mb.getY()));
         machine.setVisible(ed.showMachine && ! ed.machineSep);
         machine.toFront(false);
     }
@@ -2602,8 +2616,7 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
     addAndMakeVisible(*root);
     setWantsKeyboardFocus(true);
     setResizable(true, true);
-    setResizeLimits(960, 600, 2880, 1800);
-    getConstrainer()->setFixedAspectRatio((double) W / H);
+    setResizeLimits(960, 600, 7680, 4320);
     setSize(1200, 750);
     startTimerHz(30);
     if (juce::SystemStats::getEnvironmentVariable("LOAF_TEST_OPEN", {}) == "gestion")   // (tests: the manager at once)
@@ -2628,10 +2641,12 @@ LoafBreakerEditor::~LoafBreakerEditor() { stopTimer(); machineWin.reset(); }
 
 void LoafBreakerEditor::resized()
 {
-    // the whole drawing scaled to fit, centred (a screen of another shape: bands of the skin's ground around it)
-    const float s = juce::jmin((float) getWidth() / W, (float) getHeight() / H);
-    root->setTransform(juce::AffineTransform::scale(s).translated(((float) getWidth() - W * s) * 0.5f, ((float) getHeight() - H * s) * 0.5f));
-    root->setBounds(0, 0, W, H);
+    // the drawing scaled to the window (FLEXOR: "adapté à tous les écrans"): 1440 x 900 or more, its shape the window's
+    // (wider: more room across; taller: more for the menus), never bands around it
+    const float sc = juce::jmin((float) getWidth() / W, (float) getHeight() / H);
+    const int lw = juce::jmax(W, (int) std::floor((float) getWidth() / sc)), lh = juce::jmax(H, (int) std::floor((float) getHeight() / sc));
+    root->setTransform(juce::AffineTransform::scale(sc));
+    root->setBounds(0, 0, lw, lh);
     root->resized();
 }
 
@@ -2665,7 +2680,7 @@ void LoafBreakerEditor::timerCallback()
     {                                    // the sound's picture: wanted while it is shown, its view's columns and time
         const int hk = heroKind();
         if (hk >= 0 && hk <= 3) {
-            proc.picWant(hk, root->hero.ms(), 1000);
+            proc.picWant(hk, root->hero.ms(), juce::jmax(200, (int) root->hero.WW));
             if (proc.picIfNew(picSerial, pic)) root->hero.repaint();
         } else
             proc.picWant(-1, 0, 0);
@@ -2978,8 +2993,7 @@ void LoafBreakerEditor::screenMode(int mode)
         if (mode && disp) {
             windowBounds = getBounds();
             const auto area = disp->userArea.reduced(10, 40);
-            const float s = juce::jmin((float) area.getWidth() / W, (float) area.getHeight() / H);
-            setSize((int) (W * s), (int) (H * s));
+            setSize(area.getWidth(), area.getHeight());   // (the screen's shape: the drawing follows it)
         } else if (! windowBounds.isEmpty())
             setSize(windowBounds.getWidth(), windowBounds.getHeight());
         screen = mode;

@@ -134,6 +134,13 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   picture D+ TYPE's curve big, bent by DRIVE; PATTERN's lanes as tall as the room (SeqPanel rowH scaled), the break's
   steps in the RGB colours; SONG's arranger in cards, each pattern block its group's colour (P1-16 red .. 49-64 blue)
   and its kick, snare and hat drawn small (lb_patterns, fetched while SONG shows).
+- Any screen (25 Nov 2026, FLEXOR: "le plein écran n'est pas adapté à un écran 16:9 ... adapté à tous les écrans"): the
+  editor no longer keeps 16:10 (no fixed aspect, limits 960 x 600 to 7680 x 4320); LBE::resized scales by the smaller
+  ratio and gives Root the window's own shape, 1440 x 900 or more (Root::resized, Header, Tabs, Pads, SoundHero lay out
+  from getWidth / getHeight: wider, the pictures and cards; taller, the menus, the sequencer, the arranger); a DAW's
+  full screen takes the screen's area. Faders that stuck while dragged (FLEXOR: "des faders restent bloqués après
+  avoir un peu bougé"): the cards laid out again under the hand lost it (dragP nulled); MenuContent keeps `dragKey` and
+  finds it again after a rebuild.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours
