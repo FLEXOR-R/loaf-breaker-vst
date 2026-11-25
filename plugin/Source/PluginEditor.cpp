@@ -772,12 +772,7 @@ struct MenuContent : Part
             else listMenu(*q);
         }
     }
-    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
-    {
-        auto* q = at(hit(e.position));
-        if (! q || ! q->ctl.contains(e.position) || w.deltaY == 0.0f) { Component::mouseWheelMove(e, w); return; }
-        nudge(*q, w.deltaY > 0 ? 1 : -1);
-    }
+    // (FLEXOR: "pas de modification des sliders avec la molette": the wheel scrolls the cards, never a value)
     // every value in a menu (a list; a slider double-clicked or right-clicked): the one it has ticked
     void listMenu(Param& q)
     {
