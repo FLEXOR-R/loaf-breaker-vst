@@ -180,6 +180,16 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   ACTUEL (the VST's own), RGB, SERATO, 3 BAND, BLUE (the firmware's common.c wave_col, Ui.cpp ui::waveColumn), FM-1
   (its WAVE TYPE, lb_model.wstyle). The split redraws the break (FLEXOR: "le split ne redessine pas de waveform"):
   lb_wave's serial moves with a checksum of 64 samples and the slices, the split writing where the break was.
+- The Master's waveform (25 Nov 2026, FLEXOR: "une waveform intégrée dans la partie supérieure droite de la fenêtre ...
+  la waveform du Master ... l'agrandir ou la faire flotter pour la mettre sur n'importe quel écran et la superposer"):
+  the processor's `mwFeed` (processBlock's output, and idlePump's when no audio runs) a column every ~2.7 ms (min, max,
+  three bands), a ring of MW_N; MasterView (PluginEditor.cpp) in the header where the message box was (the message
+  over it; + big over the page, ^ its own window), big (Root masterBig, FLOTTER, X), MasterWindow (always on top of
+  every window, its place kept: masterWin, masterFloat reopened at start); its look waveStyleM. The kick's EQ curve
+  (FLEXOR: "il ne faut pas que sur le graphique du kick je puisse changer autre chose que le niveau de dB"): a point
+  taken by its column, its gain alone; the frequencies their own settings', drawn from the last seen (hzSeen).
+  MachineWindow and MasterWindow read their saved place before sizing themselves (`ready`: the window's own sizing
+  had been kept as the player's, 240 x 240 each time).
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

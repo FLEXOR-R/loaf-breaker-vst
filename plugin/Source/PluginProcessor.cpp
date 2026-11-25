@@ -111,7 +111,8 @@ void LoafBreakerProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     const juce::ScopedLock sl(lock);
     hostRate = sampleRate;
-    blockSize = samplesPerBlock;         // (the host's buffer: most of the delay a key from the FM-1 waits)
+    blockSize = samplesPerBlock;
+    mwLen = juce::jmax(16, (int) std::lround(sampleRate / 375.0));   // (~375 columns a second, whatever the rate)         // (the host's buffer: most of the delay a key from the FM-1 waits)
     const int maxCore = (int) std::ceil(samplesPerBlock * CORE_RATE / sampleRate) + 64;
     fifo.assign((size_t) (maxCore + 1024) * 2, 0.0f);
     tmpL.assign((size_t) maxCore + 1024, 0.0f);
@@ -479,6 +480,7 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
             pr = juce::jmax(pr, std::abs(b));
             scopeRing[(size_t) at] = 0.5f * (a + b);
             at = (at + 1) % (int) scopeRing.size();
+            mwFeed(0.5f * (a + b));      // the Master's waveform
         }
         scopeAt = at;
         peakL = juce::jmax(peakL.load(), pl);
@@ -511,6 +513,9 @@ void LoafBreakerProcessor::idlePump()
     while (left > 0) {                   // (the sound drawn and dropped, in pieces the FIFO holds)
         const int m = juce::jmin(left, 256);
         produceCore(m);
+        const float g = params.getRawParameterValue("volume")->load();
+        for (int i = 0; i < m; ++i)      // (no audio running: the Master's waveform all the same, as the core plays)
+            mwFeed(0.5f * (fifo[(size_t) (2 * i)] + fifo[(size_t) (2 * i + 1)]) * g);
         fifoN = 0;
         left -= m;
     }
@@ -670,6 +675,37 @@ void LoafBreakerProcessor::meters(float& l, float& r)
 {
     l = peakL.exchange(0.0f);
     r = peakR.exchange(0.0f);
+}
+
+void LoafBreakerProcessor::mwFeed(float x)   // (a column every mwLen samples: its extremes, its three bands' energy)
+{
+    mwLp1 += (x - mwLp1) * 0.026f;       // (~200 Hz at 48 kHz)
+    mwLp2 += (x - mwLp2) * 0.23f;        // (~2 kHz)
+    if (mwN == 0) mwAcc.mn = mwAcc.mx = x;
+    mwAcc.mn = juce::jmin(mwAcc.mn, x);
+    mwAcc.mx = juce::jmax(mwAcc.mx, x);
+    mwAcc.lo += mwLp1 * mwLp1;
+    mwAcc.mi += (mwLp2 - mwLp1) * (mwLp2 - mwLp1);
+    mwAcc.hi += (x - mwLp2) * (x - mwLp2);
+    if (++mwN >= mwLen) {
+        const float k = 1.0f / (float) mwN;
+        MwCol c = mwAcc;
+        c.lo = std::sqrt(c.lo * k), c.mi = std::sqrt(c.mi * k), c.hi = std::sqrt(c.hi * k);
+        const int w = mwAt.load();
+        mw[(size_t) (w % MW_N)] = c;
+        mwAt = w + 1;
+        mwAcc = MwCol {};
+        mwN = 0;
+    }
+}
+
+int LoafBreakerProcessor::masterCols(MwCol* out, int n) const
+{
+    const int at = mwAt.load();
+    n = juce::jmin(n, MW_N - 1, at);
+    for (int i = 0; i < n; ++i)
+        out[i] = mw[(size_t) ((at - n + i) % MW_N)];
+    return n;
 }
 
 void LoafBreakerProcessor::scope(float* out, int n)

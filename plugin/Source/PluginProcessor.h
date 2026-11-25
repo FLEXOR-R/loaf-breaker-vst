@@ -62,6 +62,13 @@ public:
     bool patternsIfNew(uint32_t& serial, uint8_t* out /* 64 x 40 */);   // the 64 patterns' pictures
     void meters(float& l, float& r);     // the output's peaks since the last call
     void scope(float* out, int n);       // the last n output samples (mono)
+    // the Master's waveform (FLEXOR: "une waveform intégrée dans la partie supérieure droite ... la waveform du Master ...
+    // l'agrandir ou la faire flotter"): a column every ~2.7 ms of the output (its min, max and three bands' energy),
+    // the newest last; n columns at most MW_N
+    struct MwCol { float mn = 0, mx = 0, lo = 0, mi = 0, hi = 0; };
+    static constexpr int MW_N = 8192;
+    int masterCols(MwCol* out, int n) const;
+    double masterColsPerSec() const { return hostRate / (double) mwLen; }
     int keyIndex(bool black, int i) const { return black ? blackKey[i % 11] : whiteKey[i % 16]; }
     void idlePump();                     // the editor's timer: the core run silently while no audio runs
 
@@ -199,6 +206,12 @@ private:
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
     std::vector<float> scopeRing = std::vector<float>(4096, 0.0f);
     std::atomic<int> scopeAt { 0 };
+    std::vector<MwCol> mw = std::vector<MwCol>(MW_N);
+    std::atomic<int> mwAt { 0 };
+    int mwLen = 128, mwN = 0;
+    MwCol mwAcc;
+    float mwLp1 = 0.0f, mwLp2 = 0.0f;
+    void mwFeed(float x);
     int whiteKey[16] {}, blackKey[11] {};
     std::atomic<double> lastAudioMs { 0.0 };
     double idleFrom = 0.0;

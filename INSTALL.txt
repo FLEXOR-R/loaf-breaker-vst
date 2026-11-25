@@ -101,6 +101,10 @@ L'INTERFACE
 - Puis toutes les parties de l'onglet, une carte chacune : les couches ont leur couleur partout (SUB rouge, PUNCH
   orange, GRIT vert, CLICK bleu, TOK violet), les choix qui se dessinent sont des vignettes (MODE, CURVE, D+ TYPE...),
   les niveaux des faders, les 4 potards du FM-1 des potards ronds. Sur FX1 / FX2 (et EFFECTS) : l'effet a choisir.
+- MASTER : en haut a droite, la forme d'onde de la sortie (les messages du FM-1 par-dessus). + l'agrandit sur la
+  page, ^ l'ouvre dans sa propre fenetre, toujours au-dessus des autres, a poser sur n'importe quel ecran.
+- L'EQ du kick : sur la courbe, un point ne monte et ne descend qu'en dB ; ses frequences se reglent dans leurs
+  propres reglages, la courbe les suit.
 - PADS (en bas) : PADS deplie les pads en grand, REPLIER les replie. Un clic gauche sur un pad ouvre ses reglages
   (touche blanche : LENGTH, PITCH, MODE, DECAY ; touche noire : ceux de sa fonction, LATCH compris), un clic droit
   le joue. En mode controleur, une touche appuyee sur le FM-1 montre les siens.

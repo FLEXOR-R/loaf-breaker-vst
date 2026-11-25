@@ -48,10 +48,18 @@ public:
     bool showMachine = true;
     void menu();
     void toggleMachine();
+    void relayout();                             // (the page laid out again: a view shown or hidden)
     void machineSeparate(bool separate);         // the FM-1's screen in a window of its own
     void machineShow();
     bool machineSep = false;
     std::unique_ptr<struct MachineWindow> machineWin;
+    // the Master's waveform (FLEXOR: "une waveform intégrée dans la partie supérieure droite ... la waveform du Master ...
+    // l'agrandir ou la faire flotter pour la mettre sur n'importe quel écran et la superposer"): in the header always,
+    // big over the page (masterBig), or in a window of its own, above every other (masterWin; settings masterFloat)
+    bool masterBig = false, masterOnce = false;
+    int waveStyleM = 0;
+    std::unique_ptr<struct MasterWindow> masterWin;
+    void masterFloat(bool on);
     void persoEditor();
     void openManager();
     void breakMenu();                            // the breaks by category, the playlist
