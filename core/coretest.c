@@ -106,6 +106,28 @@ int main(void)
         lb_lights(l);
         check(l[0] != 0u && (l[2] | l[3] | l[4]) != 0u && l[5] <= 2u, "the lights");
     }
+    {                                    /* the FM-1's SELECT (lb_turn_hw) the tempo on HOME, the VST's (lb_turn) never */
+        lb_model_t m;
+        float b0, b1, b2;
+        for (i = 0; i < 3; i++) {
+            lb_model(&m);
+            if (!strcmp(m.dom, "LIVE")) break;
+            lb_button(LB_HOME, 1); lb_ms(1); lb_button(LB_HOME, 0);
+            for (int j = 0; j < 40; j++) lb_ms(j % 15 == 0);
+        }
+        lb_model(&m); b0 = m.bpm;
+        lb_turn_hw(LB_SELECT, 2);
+        for (i = 0; i < 40; i++) lb_ms(i % 15 == 0);
+        lb_model(&m); b1 = m.bpm;
+        lb_turn(LB_SELECT, 1);
+        for (i = 0; i < 40; i++) lb_ms(i % 15 == 0);
+        lb_model(&m); b2 = m.bpm;
+        lb_turn(LB_SELECT, -1);
+        for (i = 0; i < 40; i++) lb_ms(i % 15 == 0);
+        lb_tempo(-2);
+        printf("     tempo %.1f, FM-1 SELECT +2: %.1f, VST SELECT +1: %.1f (%s)\n", (double) b0, (double) b1, (double) b2, m.dom);
+        check(b1 > b0 + 1.5f && b1 < b0 + 2.5f && b2 == b1, "the FM-1's SELECT the tempo, the VST's not");
+    }
     printf("%s\n", bad ? "FAILED" : "OK");
     return bad != 0;
 }

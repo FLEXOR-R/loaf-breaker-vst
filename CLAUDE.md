@@ -150,7 +150,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   (each opened when free, looked for each second; closed while Fm1Link's backup runs), two lock-free FIFOs to the
   audio thread. The processor's `ctlServe` (processBlock and idlePump): CC 127 1 each second, the LEDs from lbcore
   `lb_lights` (ABI 13: plat_lights' masks) as notes, changed ones each 15 ms and all each second; `ctlApply`: notes to
-  lb_button / lb_key, CCs to lb_turn / lb_master. Channel 16 from the DAW is the FM-1's while on (never notes for the
+  lb_button / lb_key, CCs to lb_turn_hw (ABI 14: at once, SELECT the tempo as on the FM-1, FLEXOR: "SELECT change le
+  tempo en mode contrôleur"; the VST's own tabs still never) / lb_master. Channel 16 from the DAW is the FM-1's while on (never notes for the
   core), applied only when its own port is not open (no doubles). Its state in the header (FM-1 ... / FM-1 *), its
   held keys lit on the pads (fm1Keys, fm1Buttons); gone 2.5 s: what it held let go. lbtest checks it through the DAW
   (channel 16's first white key heard, channel 1's not); coretest the lights.

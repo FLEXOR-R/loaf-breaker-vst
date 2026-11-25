@@ -103,6 +103,14 @@ void lb_turn(int role, int detents)
     else
         rf_panel.enc[rf_panel.enc_id[role]] += detents * rf_panel.enc_dir[role];
 }
+void lb_turn_hw(int role, int detents)
+{
+    if (role < 0 || role >= RF_NE - 1 || !detents)
+        return;
+    rf_panel.enc[rf_panel.enc_id[role]] += detents * rf_panel.enc_dir[role];
+    if (role == 0)
+        lb_hw_sel = 1u;
+}
 void lb_tempo(int detents)
 {
     char t[16];

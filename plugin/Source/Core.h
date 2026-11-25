@@ -35,6 +35,7 @@ public:
     uint32_t (*screen)(uint16_t* rgb565) = nullptr;
     uint32_t (*leds)(uint8_t* out, uint32_t n) = nullptr;
     void (*lights)(uint32_t* o) = nullptr;
+    void (*turnHw)(int role, int detents) = nullptr;
     int (*playing)() = nullptr;
     uint32_t (*flashSize)() = nullptr;
     uint32_t (*flashGet)(uint8_t* out, uint32_t n) = nullptr;

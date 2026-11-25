@@ -261,7 +261,7 @@ void LoafBreakerProcessor::ctlApply(uint32_t msg)
         }
     } else if (st == 0xBF) {
         if (a >= 16 && a < 23 && v != 64)
-            core.turn(a - 16, v - 64);   // (LB_SELECT .. LB_K4 = EN_*)
+            core.turnHw(a - 16, v - 64);   // (LB_SELECT .. LB_K4 = EN_*: as the FM-1 reads them, SELECT the tempo there)
         else if (a == 25)
             ctlMlo = v & 7;
         else if (a == 24)
