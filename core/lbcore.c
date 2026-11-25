@@ -291,6 +291,7 @@ void lb_model(lb_model_t *m)
             m->dlev[i] = perc_voice(i)->level;
         }
     }
+    m->wstyle = (int)ws_style();
     if (plat_ms() < ui.msg_until) {
         lb_copy(m->say[0], ui.msg[0], sizeof m->say[0]);
         lb_copy(m->say[1], ui.msg[1], sizeof m->say[1]);
@@ -311,9 +312,17 @@ uint32_t lb_wave(float *cols, int n, float *slices, int *nslices)
     float lp1 = 0.0f, lp2 = 0.0f, mx[4] = {1e-9f, 1e-9f, 1e-9f, 1e-9f};
     if (!b || !b->len)
         return serial;
-    if (b->pcm != was_pcm || b->len != was_len) {
-        was_pcm = b->pcm, was_len = b->len;
-        serial++;
+    {                                    /* (the split rewrites the break where it was, as long: a checksum too) */
+        static uint32_t was_sum;
+        uint32_t sum = (uint32_t)b->nslices * 2654435761u;
+        for (i = 0; i < 64u; i++)
+            sum = sum * 31u + (uint16_t)b->pcm[(uint32_t)((uint64_t)b->len * i / 64u)];
+        for (i = 0; i < (uint32_t)b->nslices && i < 32u; i++)
+            sum = sum * 31u + b->slice[i];
+        if (b->pcm != was_pcm || b->len != was_len || sum != was_sum) {
+            was_pcm = b->pcm, was_len = b->len, was_sum = sum;
+            serial++;
+        }
     }
     if (!cols || n <= 0)                 /* (the serial alone: has the break changed) */
         return serial;
@@ -405,6 +414,72 @@ int lb_wave_mm(float *mm, int n)
 /* a sound heard alone: 0 the kick, 1..3 SN HH CP */
 void lb_drum_hit(int d) { if (d <= 0) kick_hit(); else perc_hit((uint32_t)(d - 1) % 3u); }
 
+static void lb_cp(char *d, const char *s, int n) { int k = 0; if (s) while (k < n - 1 && s[k]) { d[k] = s[k]; k++; } d[k] = 0; }
+int lb_key_knobs(int black, int i, lb_keyknobs_t *o)
+{
+    char t[24];
+    int k;
+    uint32_t f;
+    memset(o, 0, sizeof *o);
+    if (!black) {
+        if (i < 0 || i > 15)
+            return 0;
+        snprintf(o->fn, sizeof o->fn, "KEY %d", i + 1);
+        for (k = 0; k < 4; k++) {
+            lb_cp(o->name[k], KEY_KNOB[k], 16);
+            key_knob_value(i, k, t);
+            lb_cp(o->val[k], t, 20);
+        }
+        o->n = 4;
+        return 1;
+    }
+    if (i < 0 || i > 11)
+        return 0;
+    if (i == 11 && !rec_key_on()) {       /* (REC with no function: it records) */
+        lb_cp(o->fn, "REC", 24);
+        return 1;
+    }
+    f = bk_fn((uint32_t)i);
+    if (f >= BKF_N)
+        return 0;
+    if (f == BKF_ARP && i < 11)
+        arp_foc = (uint8_t)i;             /* (the ARP key's knobs are the one touched last's: this one) */
+    lb_cp(o->fn, BKF_LONG[f], 24);
+    for (k = 0; k < 4; k++) {
+        const char *nm = pad_knob_name((int)f, k);
+        if (!nm)
+            continue;
+        lb_cp(o->name[k], nm, 16);
+        pad_knob_value((int)f, k, t);
+        lb_cp(o->val[k], t, 20);
+        o->n++;
+    }
+    return 1;
+}
+void lb_key_knob_turn(int black, int i, int k, int d)
+{
+    if (!d || k < 0 || k > 3)
+        return;
+    if (!black) {
+        uint8_t kl = ui.key_layer;
+        if (i < 0 || i > 15)
+            return;
+        ui.key_layer = 0u;
+        key_knob_turn(i, k, d);
+        ui.key_layer = kl;
+        return;
+    }
+    if (i < 0 || i > 11 || (i == 11 && !rec_key_on()))
+        return;
+    {
+        uint32_t f = bk_fn((uint32_t)i);
+        if (f >= BKF_N)
+            return;
+        if (f == BKF_ARP && i < 11)
+            arp_foc = (uint8_t)i;
+        pad_knob_turn((int)f, k, d);
+    }
+}
 int lb_key_index(int black, int i) { return black ? (i >= 0 && i < 11 ? BK[i] : -1) : (i >= 0 && i < 16 ? WK[i] : -1); }
 
 /* ---- the sequencer (lbcore.h lb_seq, lb_step, lb_patterns) ---- */

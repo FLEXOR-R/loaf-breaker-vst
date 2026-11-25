@@ -308,6 +308,54 @@ juce::Colour rgb(float lo, float mi, float hi, float a)
     return juce::Colour(juce::jmax((uint8_t) 40, c(lo / m, 0.6f, 255.0f)), c(mi / m, 0.9f, 205.0f), c(hi / m, 0.8f, 255.0f)).withAlpha(a);
 }
 
+const char* waveStyleName(int st)
+{
+    static const char* N[WAVE_N] = { "ACTUEL", "RGB", "SERATO", "3 BAND", "BLUE", "FM-1" };
+    return N[juce::jlimit(0, WAVE_N - 1, st)];
+}
+
+void waveColumn(juce::Graphics& g, int st, float x, float mid, float top, float bottom, float lo, float mi, float hi, float a)
+{
+    lo = juce::jmax(0.0f, lo), mi = juce::jmax(0.0f, mi), hi = juce::jmax(0.0f, hi);
+    const float m = juce::jmax(lo, mi, hi);
+    const float h = juce::jmax(1.0f, bottom - top);
+    if (st == WAVE_ACTUEL || m <= 0.0f) {
+        g.setColour(rgb(lo, mi, hi, a));
+        g.fillRect(x, top, 1.0f, h);
+        return;
+    }
+    if (st == WAVE_3BAND) {              // the lows blue behind, the mids orange, the highs white in front, each as tall
+                                         // as it is against the strongest (the FM-1's)
+        static const juce::uint8 C[3][3] = { { 36, 104, 255 }, { 255, 150, 40 }, { 245, 245, 245 } };
+        static const float K[3] = { 1.5f, 0.95f, 0.45f };
+        const float v[3] = { lo, mi, hi };
+        for (int j = 0; j < 3; ++j) {
+            const float k = juce::jlimit(0.0f, 1.0f, v[j] * K[j] / m);
+            if (k <= 0.0f) continue;
+            g.setColour(juce::Colour(C[j][0], C[j][1], C[j][2]).withAlpha(a));
+            const float t = mid - (mid - top) * k, b = mid + (bottom - mid) * k;
+            g.fillRect(x, t, 1.0f, juce::jmax(1.0f, b - t));
+        }
+        return;
+    }
+    juce::Colour c;
+    if (st == WAVE_SERATO) {             // one hue: the lows red (weighed three times), the mids green, the highs blue
+        const float A = 3.0f * lo, s = A + mi + hi, hue = s > 0.0f ? (mi * 120.0f + hi * 240.0f) / s : 0.0f;
+        float r, gg, b;
+        if (hue < 60.0f) { r = 1.0f; gg = hue / 60.0f; b = 0.0f; }
+        else if (hue < 120.0f) { r = (120.0f - hue) / 60.0f; gg = 1.0f; b = 0.0f; }
+        else if (hue < 180.0f) { r = 0.0f; gg = 1.0f; b = (hue - 120.0f) / 60.0f; }
+        else { r = 0.0f; gg = (240.0f - hue) / 60.0f; b = 1.0f; }
+        c = juce::Colour::fromFloatRGBA(r, gg, b, 1.0f);
+    } else if (st == WAVE_BLUE) {        // dark blue to pale blue-white with the highs
+        const float s = lo + mi + hi, r = s > 0.0f ? juce::jmin(1.0f, hi * 2.2f / s) : 0.0f;
+        c = juce::Colour((juce::uint8) (20 + 150 * r), (juce::uint8) (70 + 155 * r), (juce::uint8) (210 + 45 * r));
+    } else                               // RGB: the bands as they are, against the strongest
+        c = juce::Colour::fromFloatRGBA(lo / m, mi / m, hi / m, 1.0f);
+    g.setColour(c.withAlpha(a));
+    g.fillRect(x, top, 1.0f, h);
+}
+
 void hatch(juce::Graphics& g, juce::Rectangle<float> r)
 {
     juce::Graphics::ScopedSaveState ss(g);

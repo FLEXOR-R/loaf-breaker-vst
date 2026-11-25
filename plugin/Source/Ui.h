@@ -50,6 +50,12 @@ void card(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title
           juce::Colour chip = juce::Colours::transparentBlack, bool lit = false);
 juce::Colour layer(const juce::String& name);   // transparent: not a layer
 juce::Colour rgb(float lo, float mi, float hi, float alpha = 1.0f);
+// the waveforms' looks (FLEXOR: "configurer les types de waveform ... rekordbox serato 3band ... garder aussi l'option
+// actuelle"): ACTUEL (the VST's own), the FM-1's four (RGB, SERATO, 3 BAND, BLUE: its common.c wave_col), FM-1 (its
+// WAVE TYPE, SYSTEM › DISPLAY); one column from top to bottom around mid, its bands lo / mi / hi
+enum { WAVE_ACTUEL, WAVE_RGB, WAVE_SERATO, WAVE_3BAND, WAVE_BLUE, WAVE_FM1, WAVE_N };
+const char* waveStyleName(int st);
+void waveColumn(juce::Graphics& g, int st, float x, float mid, float top, float bottom, float lo, float mi, float hi, float alpha = 1.0f);
 void hatch(juce::Graphics& g, juce::Rectangle<float> r);
 juce::String subtitle(const juce::String& tab, const juce::String& part);   // a part's few words ("" none)
 

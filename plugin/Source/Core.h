@@ -48,6 +48,8 @@ public:
     void (*model)(lb_model_t* m) = nullptr;
     uint32_t (*wave)(float* cols, int n, float* slices, int* nslices) = nullptr;
     int (*keyIndex)(int black, int i) = nullptr;
+    int (*keyKnobs)(int black, int i, lb_keyknobs_t* o) = nullptr;
+    void (*keyKnobTurn)(int black, int i, int k, int d) = nullptr;
     uint32_t (*fm1Export)(uint8_t* out, uint32_t cap, char* report, uint32_t rcap) = nullptr;
     int (*fm1Import)(const uint8_t* img, uint32_t n, char* report, uint32_t rcap) = nullptr;
     int (*fm1List)(const uint8_t* img, uint32_t n, lb_list_t* o) = nullptr;

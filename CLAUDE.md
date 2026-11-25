@@ -164,6 +164,21 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   core), applied only when its own port is not open (no doubles). Its state in the header (FM-1 ... / FM-1 *), its
   held keys lit on the pads (fm1Keys, fm1Buttons); gone 2.5 s: what it held let go. lbtest checks it through the DAW
   (channel 16's first white key heard, channel 1's not); coretest the lights.
+- The keys' own settings (25 Nov 2026, FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic gauche
+  dessus, sinon difficile de configurer en mode controleur"): a left click on a pad opens KeyPanel (a white key's
+  LENGTH PITCH MODE DECAY, a black key's function's four knobs, LATCH among them: KIL X2 X4 TRI's since the firmware's
+  0.9.80 table), < > a step (SHIFT 5), dragged sideways, JOUER held plays it; a right click on a pad plays it; following
+  the FM-1 (controller), its key pressed shows its own. lbcore lb_key_knobs / lb_key_knob_turn (ABI 15: keys.c
+  key_knob_*, pads.c pad_knob_*, arp_foc for an ARP key), the processor's kkWant / keyKnobsIfNew (30 a second) and
+  CmdKeyKnob. KnobBar (controller on): K1-K4 as the FM-1's foot names them (SEL's while held), values, gauges, the one
+  turned lit; the card the FM-1's knobs turn now names its settings K1..K4. The kick card says PRESETS goes through
+  KICK 1-20 while the PRESET list loads a built-in (FLEXOR saw "3, 5, 4": the memories' built-ins, KMEM_ORD, are not in
+  the list's order).
+- Waveforms (25 Nov 2026, FLEXOR: "configurer les types de waveform ... les kicks ... rekordbox serato 3band ... garder
+  aussi l'option actuelle"): chips on the break's picture and on the kick's / drums' (settings waveStyleB, waveStyleS):
+  ACTUEL (the VST's own), RGB, SERATO, 3 BAND, BLUE (the firmware's common.c wave_col, Ui.cpp ui::waveColumn), FM-1
+  (its WAVE TYPE, lb_model.wstyle). The split redraws the break (FLEXOR: "le split ne redessine pas de waveform"):
+  lb_wave's serial moves with a checksum of 64 samples and the slices, the split writing where the break was.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

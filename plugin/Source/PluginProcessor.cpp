@@ -161,6 +161,7 @@ void LoafBreakerProcessor::drainCommands()
         else if (it.cmd == CmdSet) { core.set(it.a, it.c, it.b); partsWanted = true; }
         else if (it.cmd == CmdBreak) core.breakGo(it.b);
         else if (it.cmd == CmdTrack) { core.trackPlay(it.a, it.b); tracksAge = 99; }
+        else if (it.cmd == CmdKeyKnob) core.keyKnobTurn(it.a >> 5, it.a & 31, it.c, it.b);
     };
     for (int i = 0; i < scope.blockSize1; ++i) run(cmdBuf[scope.startIndex1 + i]);
     for (int i = 0; i < scope.blockSize2; ++i) run(cmdBuf[scope.startIndex2 + i]);
@@ -188,6 +189,10 @@ void LoafBreakerProcessor::coreMs()
             if (tl.isLocked()) {
                 core.model(&modelBuf);
                 modelSerial++;
+                if (const int kw = kkWant.load(); kw >= 0) {   // the key looked at: its settings
+                    lb_keyknobs_t k {};
+                    if (core.keyKnobs(kw >> 5, kw & 31, &k)) { kkBuf = k; kkSerial++; }
+                }
                 core.seq(&seqBuf);
                 seqSerial++;
                 if (patsWanted || ++patsAge >= 30 || seqBuf.pat != lastPat) {   // (a second, an edit, another pattern)
@@ -266,8 +271,10 @@ void LoafBreakerProcessor::ctlApply(uint32_t msg)
             ctlKeys = down ? ctlKeys.load() | 1u << (a - 16) : ctlKeys.load() & ~(1u << (a - 16));
         }
     } else if (st == 0xBF) {
-        if (a >= 16 && a < 23 && v != 64)
-            core.turnHw(a - 16, v - 64);   // (LB_SELECT .. LB_K4 = EN_*: as the FM-1 reads them, SELECT the tempo there)
+        if (a >= 16 && a < 23 && v != 64) {
+            const int r = a - 16, d = v - 64;
+            core.turnHw(r, d);           // (LB_SELECT .. LB_K4 = EN_*: as the FM-1 reads them, SELECT the tempo there)
+        }
         else if (a == 25)
             ctlMlo = v & 7;
         else if (a == 24)
@@ -517,6 +524,25 @@ bool LoafBreakerProcessor::modelIfNew(uint32_t& serial, lb_model_t& out)
     out = modelBuf;
     serial = modelSerial;
     return true;
+}
+
+bool LoafBreakerProcessor::keyKnobsIfNew(uint32_t& serial, lb_keyknobs_t& out)
+{
+    const juce::SpinLock::ScopedLockType sl(screenLock);
+    if (serial == kkSerial)
+        return false;
+    out = kkBuf;
+    serial = kkSerial;
+    return true;
+}
+
+void LoafBreakerProcessor::keyKnobTurn(int black, int i, int k, int d)
+{
+    if (d == 0) return;
+    const auto scope = cmdFifo.write(1);
+    const CmdItem it { (uint8_t) CmdKeyKnob, (int8_t) (black * 32 + i), (int16_t) juce::jlimit(-100, 100, d), (int8_t) k, 0, 0 };
+    if (scope.blockSize1 > 0) cmdBuf[scope.startIndex1] = it;
+    else if (scope.blockSize2 > 0) cmdBuf[scope.startIndex2] = it;
 }
 
 void LoafBreakerProcessor::setValue(int part, int knob, int steps)

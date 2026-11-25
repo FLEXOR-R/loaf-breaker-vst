@@ -36,10 +36,11 @@ typedef struct {
     float klev[5];                       /* its layers' levels 0..1: SUB PUNCH GRIT CLICK, then TOK */
     char dpre[3][16];                    /* SN HH CP: their presets, their levels */
     float dlev[3];
+    int wstyle;                          /* the FM-1's WAVE TYPE (SYSTEM › DISPLAY): 0 RGB, 1 SERATO, 2 3 BAND, 3 BLUE */
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 14
+#define LB_ABI 15
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -96,7 +97,13 @@ LB_API uint32_t lb_pic_sig(int what);
 LB_API int lb_pic(int what, int n, int ms, float *out);
 LB_API int lb_wave_mm(float *mm, int n);
 LB_API void lb_drum_hit(int d);
-LB_API int lb_key_index(int black, int i);       /* the FM-1 key (0..26) of white key i (0..15) or black key i (0..10) */
+LB_API int lb_key_index(int black, int i);
+/* a key's own settings, as when it is held (FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic
+ * gauche dessus"): a white key (black 0, i 0..15) its LENGTH PITCH MODE DECAY, a black key (black 1, i 0..10, 11 the
+ * REC key) its function's knobs; name[k] "" where a knob does nothing. 0: no such key */
+typedef struct { char fn[24]; char name[4][16]; char val[4][20]; int n; } lb_keyknobs_t;
+LB_API int lb_key_knobs(int black, int i, lb_keyknobs_t *o);
+LB_API void lb_key_knob_turn(int black, int i, int k, int d);       /* the FM-1 key (0..26) of white key i (0..15) or black key i (0..10) */
 LB_API void lb_save(void);
 /* the sequencer (the VST's PATTERN page; FLEXOR, 24 Nov 2026: "il me faut un vrai séquenceur"): the pattern in RAM whole,
  * as the firmware's SEQ has it (the Studio's ED_SEQ, read straight) */

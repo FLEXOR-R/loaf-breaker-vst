@@ -101,7 +101,14 @@ L'INTERFACE
 - Puis toutes les parties de l'onglet, une carte chacune : les couches ont leur couleur partout (SUB rouge, PUNCH
   orange, GRIT vert, CLICK bleu, TOK violet), les choix qui se dessinent sont des vignettes (MODE, CURVE, D+ TYPE...),
   les niveaux des faders, les 4 potards du FM-1 des potards ronds. Sur FX1 / FX2 (et EFFECTS) : l'effet a choisir.
-- PADS (en bas) : un clic deplie les pads en grand, REPLIER les replie.
+- PADS (en bas) : PADS deplie les pads en grand, REPLIER les replie. Un clic gauche sur un pad ouvre ses reglages
+  (touche blanche : LENGTH, PITCH, MODE, DECAY ; touche noire : ceux de sa fonction, LATCH compris), un clic droit
+  le joue. En mode controleur, une touche appuyee sur le FM-1 montre les siens.
+- Les formes d'onde : en haut a droite du break et du kick, ACTUEL, RGB, SERATO, 3 BAND, BLUE ou FM-1 (le reglage
+  WAVE TYPE de la machine).
+- En mode controleur, la barre FM-1 KNOBS (au-dessus des pads) dit ce que font K1 a K4, et la carte qu'ils reglent
+  marque K1..K4. Le potard PRESETS parcourt les kicks KICK 1-20 (la grille de la carte du kick) ; la liste PRESET
+  charge un kick integre dans le kick en cours.
 - SHIFT (maintenu) : les reglages de SEL.
 - MENU : le skin (LOAF LORD par defaut), le clavier (chaque touche reglable), l'ecran du FM-1 (a afficher ou non),
   Machine FM-1 (le jouer en controleur, la gestion, les sauvegardes).

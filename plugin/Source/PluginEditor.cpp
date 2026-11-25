@@ -327,6 +327,25 @@ struct Tabs : Part
 // the break, big and detailed (FLEXOR, 25 Nov 2026: "pour les breaks j'aimerais une waveform plus détaillée"): each
 // pixel column its min and max, coloured as the FM-1's RGB view (the lows red, the mids green, the highs blue), the
 // slices numbered with their keys, the 32 steps, the playhead; a click plays the slice
+static void styleChips(juce::Graphics& g, const ui::Skin& sk, float right, int cur)   // the waveform's looks, right to left
+{
+    for (int i = 0; i < ui::WAVE_N; ++i) {
+        juce::Rectangle<float> c(right - (ui::WAVE_N - i) * 52.0f, 5.0f, 48.0f, 17.0f);
+        const bool on = cur == i;
+        g.setColour(on ? sk.accent : sk.line);
+        if (on) g.fillRoundedRectangle(c, 2.0f); else g.drawRoundedRectangle(c, 2.0f, 1.0f);
+        g.setColour(on ? sk.bg : sk.dim);
+        g.setFont(ui::labelBold(8.0f));
+        g.drawText(ui::waveStyleName(i), c, juce::Justification::centred);
+    }
+}
+static int styleChipAt(juce::Point<float> p, float right)
+{
+    for (int i = 0; i < ui::WAVE_N; ++i)
+        if (juce::Rectangle<float>(right - (ui::WAVE_N - i) * 52.0f, 5.0f, 48.0f, 17.0f).contains(p)) return i;
+    return -1;
+}
+
 struct WavePanel : Part
 {
     explicit WavePanel(LBE& e) : Part(e) {}
@@ -359,6 +378,8 @@ struct WavePanel : Part
         }
         g.setColour(sk.line.withAlpha(0.7f));
         g.fillRect(a.getX(), mid, a.getWidth(), 1.0f);
+        styleChips(g, sk, (float) getWidth() - 8.0f, ed.waveStyleB);
+        const int st = ed.waveStyle(false);
         const int n = (int) w.mm.size() / 2, nb = (int) w.cols.size() / 4;
         if (n > 0 && nb > 0) {
             for (int x = 0; x < (int) a.getWidth(); ++x) {
@@ -367,9 +388,8 @@ struct WavePanel : Part
                 const float lo = w.cols[(size_t) (4 * cb + 1)], mi = w.cols[(size_t) (4 * cb + 2)], hi = w.cols[(size_t) (4 * cb + 3)];
                 const float mn = w.mm[(size_t) (2 * c)], mx = w.mm[(size_t) (2 * c + 1)];
                 const bool past = play >= 0.0f && (float) x / a.getWidth() > play;
-                g.setColour(ui::rgb(lo, mi, hi, past ? 0.55f : 1.0f));
                 const float y0 = mid - juce::jlimit(-1.0f, 1.0f, mx) * half, y1 = mid - juce::jlimit(-1.0f, 1.0f, mn) * half;
-                g.fillRect(a.getX() + (float) x, y0, 1.0f, juce::jmax(1.0f, y1 - y0));
+                ui::waveColumn(g, st, a.getX() + (float) x, mid, y0, juce::jmax(y0 + 1.0f, y1), lo, mi, hi, past ? 0.55f : 1.0f);
             }
         }
         for (int i = 0; i < ns; ++i) {           // (the slices' numbers, over the wave)
@@ -414,6 +434,7 @@ struct WavePanel : Part
     }
     void mouseDown(const juce::MouseEvent& e) override
     {
+        if (const int c = styleChipAt(e.position, (float) getWidth() - 8.0f); c >= 0) { ed.setWaveStyle(false, c); repaint(); return; }
         held = sliceAt(e.position.x);
         if (held >= 0 && held < 16) ed.key(false, held, true);
         repaint();
@@ -491,6 +512,8 @@ struct SoundHero : Part
             g.setFont(ui::labelBold(8.0f));
             g.drawText(Z[i], c, juce::Justification::centred);
         }
+        styleChips(g, sk, SW - 226.0f, ed.waveStyleS);
+        const int st = ed.waveStyle(true);
         g.setColour(sk.line.withAlpha(0.8f));
         g.fillRect(X0, CY, WW, 1.0f);
         const bool fresh = p.what == what && p.ms == m && p.n > 0;
@@ -501,7 +524,10 @@ struct SoundHero : Part
                 const int c = juce::jlimit(0, n - 1, (int) ((float) x / WW * n));
                 const float* v = &p.cols[(size_t) (5 * c)];
                 const auto col = ui::rgb(v[1], v[2], v[3]);
-                if (what == 0) {                 // the kick: its wave, cycle by cycle, filled from the middle
+                if (st != ui::WAVE_ACTUEL) {     // the FM-1's looks: the level both ways, coloured by its bands
+                    const float h = juce::jmax(1.0f, v[4] * A);
+                    ui::waveColumn(g, st, X0 + x, CY, CY - h, CY + h, v[1], v[2], v[3]);
+                } else if (what == 0) {          // the kick: its wave, cycle by cycle, filled from the middle
                     const float y = CY - juce::jlimit(-1.0f, 1.0f, v[0]) * A;
                     g.setColour(col.withAlpha(0.35f));
                     g.fillRect(X0 + x, juce::jmin(y, CY - v[4] * A), 1.0f, std::abs(y - (CY - v[4] * A)) + 0.0f);
@@ -514,7 +540,7 @@ struct SoundHero : Part
                     g.fillRect(X0 + x, CY - h, 1.0f, 2.0f * h);
                 }
             }
-            if (what == 0) {
+            if (what == 0 && st == ui::WAVE_ACTUEL) {
                 g.setColour(sk.white.withAlpha(0.35f));
                 g.strokePath(outline, juce::PathStrokeType(1.0f));
             }
@@ -597,6 +623,11 @@ struct SoundHero : Part
         g.setColour(sk.ink.withAlpha(0.8f));
         g.setFont(ui::labelBold(14.0f));
         g.drawText(ed.m.kpre, (int) cd.getX() + 150, 18, 220, 40, juce::Justification::centredLeft);
+        g.setColour(sk.dim);                     // (FLEXOR: "ça descend pour remonter entre le 3, 5 et 4": the 20 memories
+                                                 // are what PRESETS goes through; the PRESET list, the built-ins in
+                                                 // their own order, loads one into the memory)
+        g.setFont(ui::labelBold(8.0f).withExtraKerningFactor(0.1f));
+        g.drawText("PRESETS (POTARD) : KICK 1-20   /   LISTE PRESET : UN KICK INTEGRE DANS CE KICK", (int) cd.getX() + 16, 54, (int) cd.getWidth() - 24, 12, juce::Justification::centredLeft);
         for (int i = 0; i < 20; ++i) {
             const auto r = mem(i);
             const bool on = i + 1 == ed.m.kslot;
@@ -656,6 +687,7 @@ struct SoundHero : Part
     int hit(juce::Point<float> p) const
     {
         for (int i = 0; i < 4; ++i) if (zoomChip(i).contains(p)) return 300 + i;
+        if (const int c = styleChipAt(p, SW - 226.0f); c >= 0) return 500 + c;
         if (what == 0) {
             for (int i = 0; i < 20; ++i) if (mem(i).contains(p)) return i;
             for (int i = 0; i < 3; ++i) if (btn(i).contains(p)) return 100 + i;
@@ -673,6 +705,7 @@ struct SoundHero : Part
         const int h = hit(e.position);
         static const int ZM[4] = { 60, 400, 1500, 0 };
         if (h >= 300 && h < 304) { ed.picZoom = ZM[h - 300]; repaint(); return; }
+        if (h >= 500 && h < 500 + ui::WAVE_N) { ed.setWaveStyle(true, h - 500); repaint(); return; }
         if (h == 400) { ed.proc.hear(what); return; }
         if (what == 0) {
             if (h >= 0 && h < 20 && h + 1 != ed.m.kslot) ed.turn(LB_PRESET, h + 1 - ed.m.kslot);   // (PRESETS: the kick, here)
@@ -1209,9 +1242,14 @@ struct MenuContent : Part
         const float w = (q.ctl.getWidth() - 4.0f * (cols - 1)) / cols;
         return { q.ctl.getX() + (i / per) * (w + 4.0f), q.ctl.getY() + (i % per) * rh, w, rh - 2.0f };
     }
-    void drawParam(juce::Graphics& g, const Card& c, const Param& q, bool hover)
+    void drawParam(juce::Graphics& g, const Card& c, const Param& qq, bool hover)
     {
         const auto& sk = s();
+        // (FLEXOR: "en mode controleur avoir une bonne indication de quel KNOB affecte quel paramètre"): the card the
+        // FM-1's K1-K4 turn now, its settings named K1 .. K4 first
+        Param shown = qq;
+        if ((c.live || cards.size() == 1) && ! c.rings && qq.knob >= 0 && qq.part >= 0) shown.name = "K" + juce::String(qq.knob + 1) + "  " + qq.name;
+        const Param& q = shown;
         const juce::Colour tint = c.chip.isTransparent() ? sk.accent : c.chip;
         if (c.rings) {                           // a knob: its arc, its value in it, its name under
             const float t = q.n > 1 ? frac(q, unitsAt(q, q.cur)) : 0.0f;
@@ -1223,7 +1261,7 @@ struct MenuContent : Part
             g.strokePath(bg, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             if (t > 0.001f && ! (q.off >= 0 && q.cur == q.off)) {
                 val.addCentredArc(r.getCentreX(), r.getCentreY(), r.getWidth() * 0.5f, r.getHeight() * 0.5f, 0.0f, -a0 + juce::MathConstants<float>::twoPi, -a0 + juce::MathConstants<float>::twoPi + span * t, true);
-                g.setColour(hover || dragP == &q ? sk.hot : sk.ink);
+                g.setColour(hover || dragP == &qq ? sk.hot : sk.ink);
                 g.strokePath(val, juce::PathStrokeType(7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             }
             g.setColour(q.off >= 0 && q.cur == q.off ? sk.dim : sk.ink);
@@ -1240,7 +1278,7 @@ struct MenuContent : Part
             auto r = q.ctl;
             g.setColour(sk.panel2);
             g.fillRoundedRectangle(r, 2.5f);
-            g.setColour(sk.accent.withAlpha(hover || dragP == &q ? 0.4f : 0.22f));
+            g.setColour(sk.accent.withAlpha(hover || dragP == &qq ? 0.4f : 0.22f));
             if (q.centre >= 0) {
                 const float from = frac(q, unitsAt(q, q.centre));
                 g.fillRect(juce::Rectangle<float>(r.getX() + r.getWidth() * juce::jmin(from, t), r.getBottom() - 4.0f, r.getWidth() * std::abs(t - from), 4.0f));
@@ -1259,7 +1297,7 @@ struct MenuContent : Part
             auto tr = q.ctl;
             g.setColour(sk.panel2);
             g.fillRoundedRectangle(tr, 3.0f);
-            g.setColour(col.withAlpha(hover || dragP == &q ? 0.75f : 0.6f));
+            g.setColour(col.withAlpha(hover || dragP == &qq ? 0.75f : 0.6f));
             g.fillRoundedRectangle(tr.withTop(tr.getBottom() - tr.getHeight() * t), 3.0f);
             for (int k = 1; k < 10; ++k) {       // (its scale)
                 g.setColour(sk.bg.withAlpha(0.35f));
@@ -1344,7 +1382,7 @@ struct MenuContent : Part
             }
             const bool isOff = q.off >= 0 && q.cur == q.off;
             if (! isOff) {
-                g.setColour(tint.withAlpha(hover || dragP == &q ? 0.5f : 0.34f));
+                g.setColour(tint.withAlpha(hover || dragP == &qq ? 0.5f : 0.34f));
                 g.fillRect(juce::Rectangle<float>(tr.getX() + tr.getWidth() * juce::jmin(from, t), tr.getY() + 1.0f, tr.getWidth() * std::abs(t - from), tr.getHeight() - 2.0f));
             }
             if (q.n <= 33)                       // (few steps: each one marked)
@@ -2737,19 +2775,174 @@ struct Pads : Part
         if (h >= 100) { if (h == 111) ed.hold(LB_REC, d); else ed.key(true, h - 100, d); }
         else ed.key(false, h, d);
     }
+    // (FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic gauche dessus"): a left click shows the
+    // key's settings (KeyPanel), a right click plays it while held
     void mouseDown(const juce::MouseEvent& e) override
     {
-        held = hit(e.position);
-        if (held == 999) { held = -1; ed.togglePads(); return; }
+        const int h = hit(e.position);
+        if (h == 999) { ed.togglePads(); return; }
+        if (h < 0) return;
+        if (! e.mods.isPopupMenu()) { ed.selectKey(h >= 100 ? 1 : 0, h >= 100 ? h - 100 : h); repaint(); return; }
+        held = h;
         press(held, true);
         repaint();
     }
     void mouseDrag(const juce::MouseEvent& e) override
     {
+        if (held < 0) return;
         const int h = hit(e.position);
         if (h != held && h != 999) { press(held, false); held = h; press(held, true); repaint(); }
     }
-    void mouseUp(const juce::MouseEvent&) override { press(held, false); held = -1; repaint(); }
+    void mouseUp(const juce::MouseEvent&) override { if (held >= 0) press(held, false); held = -1; repaint(); }
+};
+
+// --------------------------------------------------------------------------------- the FM-1's knobs, named ---
+// (FLEXOR: "en mode controleur avoir une bonne indication de quel KNOB affecte quel paramètre"): while the FM-1 plays the
+// VST, K1-K4 as its screen's foot names them (SEL's while SEL is held or locked; a key held: its own), each value and
+// gauge, the one just turned lit
+struct KnobBar : Part
+{
+    explicit KnobBar(LBE& e) : Part(e) {}
+    juce::String last[4];
+    double lit[4] {};
+    void update()
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        bool any = false;
+        for (int k = 0; k < 4; ++k) {
+            const juce::String v = juce::String(ed.m.kname[k]) + "|" + juce::String(ed.m.kval[k]);
+            if (v != last[k]) { if (last[k].isNotEmpty() && juce::String(ed.m.kname[k]) == last[k].upToFirstOccurrenceOf("|", false, false)) lit[k] = now; last[k] = v; any = true; }
+            if (now - lit[k] < 900.0) any = true;
+        }
+        if (any) repaint();
+    }
+    void paint(juce::Graphics& g) override
+    {
+        const auto& sk = s();
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        auto r = getLocalBounds().toFloat();
+        g.setColour(sk.panel.withAlpha(0.96f));
+        g.fillRoundedRectangle(r, 5.0f);
+        g.setColour(sk.line);
+        g.drawRoundedRectangle(r.reduced(0.5f), 5.0f, 1.0f);
+        g.setColour(ed.m.sel ? sk.hot : sk.dim);
+        g.setFont(ui::labelBold(9.0f).withExtraKerningFactor(0.12f));
+        g.drawText(ed.m.sel ? "FM-1  SEL +" : "FM-1  KNOBS", juce::Rectangle<float>(12.0f, 0.0f, 110.0f, r.getHeight()), juce::Justification::centredLeft);
+        const float x0 = 124.0f, w = (r.getWidth() - x0 - 8.0f) / 4.0f;
+        for (int k = 0; k < 4; ++k) {
+            juce::Rectangle<float> c(x0 + k * w, 4.0f, w - 6.0f, r.getHeight() - 8.0f);
+            const float glow = (float) juce::jlimit(0.0, 1.0, 1.0 - (now - lit[k]) / 900.0);
+            g.setColour(sk.bg.brighter(0.03f).interpolatedWith(sk.hot, glow * 0.25f));
+            g.fillRoundedRectangle(c, 3.0f);
+            g.setColour(glow > 0.0f ? sk.hot : sk.line);
+            g.drawRoundedRectangle(c, 3.0f, glow > 0.0f ? 1.5f : 1.0f);
+            const juce::String nm(ed.m.kname[k]);
+            g.setColour(sk.hot);
+            g.setFont(ui::value(18.0f));
+            g.drawText("K" + juce::String(k + 1), c.withWidth(34.0f), juce::Justification::centred);
+            g.setColour(nm.isEmpty() ? sk.dim.withAlpha(0.5f) : sk.dim);
+            ui::fitText(g, nm.isEmpty() ? juce::String("-") : nm, c.withTrimmedLeft(36.0f).withWidth((c.getWidth() - 36.0f) * 0.48f), ui::labelBold(10.0f), juce::Justification::centredLeft);
+            g.setColour(sk.ink);
+            ui::fitText(g, juce::String(ed.m.kval[k]), c.withTrimmedLeft(36.0f + (c.getWidth() - 36.0f) * 0.48f).withTrimmedRight(6.0f), ui::value(17.0f), juce::Justification::centredRight);
+            if (ed.m.knorm[k] >= 0.0f) {         // its gauge, under
+                g.setColour(sk.line);
+                g.fillRect(c.getX() + 36.0f, c.getBottom() - 4.0f, c.getWidth() - 42.0f, 2.0f);
+                g.setColour(glow > 0.0f ? sk.hot : sk.accent);
+                g.fillRect(c.getX() + 36.0f, c.getBottom() - 4.0f, (c.getWidth() - 42.0f) * juce::jlimit(0.0f, 1.0f, ed.m.knorm[k]), 2.0f);
+            }
+        }
+    }
+};
+
+// ---------------------------------------------------------------------------------------- a key's settings ---
+// (FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic gauche dessus, sinon difficile de configurer
+// en mode controleur"): the key clicked's four knobs as the FM-1 has them while it is held (a white key: LENGTH PITCH
+// MODE DECAY; a black key: its function's, LATCH among them), < > a step, dragged sideways; JOUER plays it while held
+struct KeyPanel : Part
+{
+    explicit KeyPanel(LBE& e) : Part(e) {}
+    int dragK = -1, playing = 0;
+    float dragX = 0.0f;
+    juce::Rectangle<float> col(int k) const { const float w = ((float) getWidth() - 360.0f) / 4.0f; return { 220.0f + k * w, 8.0f, w - 10.0f, (float) getHeight() - 16.0f }; }
+    juce::Rectangle<float> less(int k) const { auto c = col(k); return { c.getX() + 4.0f, c.getBottom() - 36.0f, 32.0f, 30.0f }; }
+    juce::Rectangle<float> more(int k) const { auto c = col(k); return { c.getRight() - 36.0f, c.getBottom() - 36.0f, 32.0f, 30.0f }; }
+    juce::Rectangle<float> playBtn() const { return { (float) getWidth() - 132.0f, 14.0f, 80.0f, 32.0f }; }
+    juce::Rectangle<float> closeBtn() const { return { (float) getWidth() - 44.0f, 14.0f, 32.0f, 32.0f }; }
+    void paint(juce::Graphics& g) override
+    {
+        const auto& sk = s();
+        auto r = getLocalBounds().toFloat().reduced(1.0f);
+        g.setColour(sk.panel.withAlpha(0.97f));
+        g.fillRoundedRectangle(r, 6.0f);
+        g.setColour(sk.accent);
+        g.drawRoundedRectangle(r, 6.0f, 1.5f);
+        const int black = ed.keySel >> 5, i = ed.keySel & 31;
+        g.setColour(sk.dim);
+        g.setFont(ui::label(9.0f).withExtraKerningFactor(0.14f));
+        g.drawText(black ? (i == 11 ? juce::String("TOUCHE REC") : "TOUCHE NOIRE " + juce::String(i + 1)) : "TOUCHE BLANCHE " + juce::String(i + 1),
+                   juce::Rectangle<float>(16.0f, 12.0f, 200.0f, 16.0f), juce::Justification::centredLeft);
+        g.setColour(sk.hot);
+        ui::fitText(g, juce::String(ed.kk.fn), juce::Rectangle<float>(16.0f, 32.0f, 196.0f, 34.0f), ui::value(26.0f), juce::Justification::centredLeft);
+        g.setColour(sk.dim);
+        g.setFont(ui::label(8.5f));
+        g.drawText(ed.proc.controller() ? "UNE TOUCHE DU FM-1 : LA SIENNE" : "CLIC DROIT SUR UN PAD : LE JOUER",
+                   juce::Rectangle<float>(16.0f, (float) getHeight() - 28.0f, 200.0f, 16.0f), juce::Justification::centredLeft);
+        for (int k = 0; k < 4; ++k) {
+            auto c = col(k);
+            const juce::String nm(ed.kk.name[k]), v(ed.kk.val[k]);
+            g.setColour(sk.bg.brighter(0.03f));
+            g.fillRoundedRectangle(c, 4.0f);
+            g.setColour(k == dragK ? sk.hot : sk.line);
+            g.drawRoundedRectangle(c, 4.0f, 1.0f);
+            if (nm.isEmpty()) {
+                ui::hatch(g, c.reduced(1.0f));
+                g.setColour(sk.dim.withAlpha(0.5f));
+                g.setFont(ui::label(9.0f));
+                g.drawText("K" + juce::String(k + 1) + "  -", c.reduced(10.0f, 6.0f), juce::Justification::topLeft);
+                continue;
+            }
+            g.setColour(sk.dim);
+            g.setFont(ui::labelBold(9.5f).withExtraKerningFactor(0.1f));
+            g.drawText("K" + juce::String(k + 1) + "  " + nm, c.reduced(10.0f, 6.0f), juce::Justification::topLeft);
+            g.setColour(nm == "LATCH" ? (v == "ON" ? sk.hot : sk.dim) : sk.ink);
+            ui::fitText(g, v, c.reduced(40.0f, 0.0f).withTrimmedTop(22.0f).withTrimmedBottom(38.0f), ui::value(24.0f));
+            ui::button(g, less(k), "<", false, false, 13.0f);
+            ui::button(g, more(k), ">", false, false, 13.0f);
+        }
+        ui::button(g, playBtn(), "JOUER", playing != 0, false, 11.0f);
+        ui::button(g, closeBtn(), "X", false, false, 12.0f);
+    }
+    void turn(int k, int d)
+    {
+        if (ed.keySel < 0 || d == 0 || juce::String(ed.kk.name[k]).isEmpty()) return;
+        ed.proc.keyKnobTurn(ed.keySel >> 5, ed.keySel & 31, k, d);
+    }
+    void press(bool d)
+    {
+        const int black = ed.keySel >> 5, i = ed.keySel & 31;
+        if (black && i == 11) ed.hold(LB_REC, d); else ed.key(black != 0, i, d);
+        playing = d;
+        repaint();
+    }
+    void mouseDown(const juce::MouseEvent& e) override
+    {
+        const auto p = e.position;
+        if (closeBtn().contains(p)) { ed.selectKey(-1, 0); return; }
+        if (playBtn().contains(p)) { press(true); return; }
+        for (int k = 0; k < 4; ++k) {
+            const int step = e.mods.isShiftDown() ? 5 : 1;
+            if (less(k).contains(p)) { turn(k, -step); return; }
+            if (more(k).contains(p)) { turn(k, step); return; }
+            if (col(k).contains(p)) { dragK = k; dragX = p.x; repaint(); return; }
+        }
+    }
+    void mouseDrag(const juce::MouseEvent& e) override   // (sideways: a step each 14 px)
+    {
+        if (dragK < 0) return;
+        const int d = (int) ((e.position.x - dragX) / 14.0f);
+        if (d != 0) { turn(dragK, d); dragX += (float) d * 14.0f; }
+    }
+    void mouseUp(const juce::MouseEvent&) override { if (playing) press(false); dragK = -1; repaint(); }
 };
 
 // ------------------------------------------------------------------------- the FM-1's screen, its own window ---
@@ -2800,9 +2993,9 @@ struct MachineWindow : juce::DocumentWindow
 // ---------------------------------------------------------------------------------------------------- root ---
 struct LoafBreakerEditor::Root : Part
 {
-    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), hero(e), menus(e), seqp(e), song(e), machine(e), pads(e)
+    explicit Root(LBE& e) : Part(e), header(e), cats(e), tabs(e), wave(e), hero(e), menus(e), seqp(e), song(e), machine(e), pads(e), keys(e), knobs(e)
     {
-        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &hero, &menus, &seqp, &song, &pads, &machine })
+        for (juce::Component* c : std::initializer_list<juce::Component*> { &header, &cats, &tabs, &wave, &hero, &menus, &seqp, &song, &pads, &keys, &knobs, &machine })
             addAndMakeVisible(c);
         setSize(W, H);
         auto box = juce::Rectangle<int>::fromString(ui::settings().getUserSettings()->getValue("machineBox"));
@@ -2819,6 +3012,8 @@ struct LoafBreakerEditor::Root : Part
     SongPanel song;
     Machine machine;
     Pads pads;
+    KeyPanel keys;
+    KnobBar knobs;
     bool seqShown = false, songShown = false;
     int heroShown = -1;                  // (LBE::heroKind: -1 none, 0 the kick, 1..3 a drum, 9 the break)
     bool padsShown = false;
@@ -2837,8 +3032,13 @@ struct LoafBreakerEditor::Root : Part
         heroShown = ed.heroKind();
         padsShown = ed.padsOpen;
         ed.proc.tracksWanted = songShown;
-        const int bottom = padsShown ? h - 214 : h - 64;     // (the menus' foot)
+        const bool kb = ed.proc.controller();               // (the FM-1 playing the VST: its knobs named over the pads)
+        const int bottom = (padsShown ? h - 214 : h - 64) - (kb ? 48 : 0);     // (the menus' foot)
         pads.setBounds(8, padsShown ? h - 210 : h - 56, w - 16, padsShown ? 202 : 48);
+        knobs.setBounds(8, pads.getY() - 48, w - 16, 42);
+        knobs.setVisible(kb);
+        keys.setBounds(8, pads.getY() - (kb ? 48 : 0) - 132, w - 16, 126);   // (a key's settings, over the menus' foot)
+        keys.setVisible(ed.keySel >= 0);
         hero.what = heroShown >= 0 && heroShown <= 3 ? heroShown : 0;
         hero.setVisible(heroShown >= 0 && heroShown <= 3);
         wave.setVisible(heroShown == 9);
@@ -2856,6 +3056,7 @@ struct LoafBreakerEditor::Root : Part
         auto mb = machine.getBounds();           // (the FM-1's screen kept inside)
         if (! getLocalBounds().contains(mb)) machine.setTopLeftPosition(juce::jlimit(0, juce::jmax(0, w - mb.getWidth()), mb.getX()), juce::jlimit(0, juce::jmax(0, h - mb.getHeight()), mb.getY()));
         machine.setVisible(ed.showMachine && ! ed.machineSep);
+        keys.toFront(false);
         machine.toFront(false);
     }
     void paint(juce::Graphics& g) override { g.fillAll(s().bg); }
@@ -2871,6 +3072,8 @@ LoafBreakerEditor::LoafBreakerEditor(LoafBreakerProcessor& p) : AudioProcessorEd
 {
     showMachine = ui::settings().getUserSettings()->getBoolValue("machine", true);
     machineSep = ui::settings().getUserSettings()->getBoolValue("machineSep", false);
+    waveStyleB = juce::jlimit(0, ui::WAVE_N - 1, ui::settings().getUserSettings()->getIntValue("waveStyleB", 0));
+    waveStyleS = juce::jlimit(0, ui::WAVE_N - 1, ui::settings().getUserSettings()->getIntValue("waveStyleS", 0));
     padsOpen = ui::settings().getUserSettings()->getBoolValue("padsOpen", false);
     root = std::make_unique<Root>(*this);
     addAndMakeVisible(*root);
@@ -2933,8 +3136,21 @@ void LoafBreakerEditor::timerCallback()
             root->header.repaint();
         }
         const uint64_t h = (uint64_t) proc.fm1Keys() | (uint64_t) proc.fm1Buttons() << 32;
-        if (h != ctlHeld) { ctlHeld = h; root->pads.repaint(); }
+        if (h != ctlHeld) {
+            const uint64_t down = h & ~ctlHeld;
+            ctlHeld = h;
+            root->pads.repaint();
+            if (keySel >= 0 && down) {           // (a key's settings shown: a key pressed on the FM-1 shows its own)
+                static const int W[16] = { 0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26 }, B[11] = { 1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25 };
+                for (int i = 0; i < 16; ++i) if (down >> W[i] & 1u) selectKey(0, i);
+                for (int i = 0; i < 11; ++i) if (down >> B[i] & 1u) selectKey(1, i);
+                if (down >> (32 + LB_REC) & 1u) selectKey(1, 11);
+            }
+        }
     }
+    if (keySel >= 0 && proc.keyKnobsIfNew(kkSerial, kk)) root->keys.repaint();
+    if (proc.controller() != root->knobs.isVisible()) root->resized();
+    if (root->knobs.isVisible()) root->knobs.update();
     if (proc.modelIfNew(modelSerial, m)) {
         root->header.repaint();
         root->cats.repaint();
@@ -3317,6 +3533,24 @@ void LoafBreakerEditor::toggleMachine()
 }
 
 // the FM-1's screen in the editor (a floating box) or in a window of its own
+void LoafBreakerEditor::selectKey(int black, int i)
+{
+    const int k = black < 0 ? -1 : black * 32 + i;
+    keySel = k == keySel && ! proc.controller() ? -1 : k;   // (the same key again: closed; but following the FM-1, kept)
+    proc.keyKnobsWant(keySel < 0 ? -1 : keySel >> 5, keySel & 31);
+    std::memset(&kk, 0, sizeof kk);
+    root->resized();
+    root->keys.repaint();
+}
+
+void LoafBreakerEditor::setWaveStyle(bool sound, int st)
+{
+    st = juce::jlimit(0, ui::WAVE_N - 1, st);
+    (sound ? waveStyleS : waveStyleB) = st;
+    ui::settings().getUserSettings()->setValue(sound ? "waveStyleS" : "waveStyleB", st);
+    root->repaint();
+}
+
 void LoafBreakerEditor::machineSeparate(bool sep)
 {
     machineSep = sep;

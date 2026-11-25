@@ -26,6 +26,13 @@ public:
     LoafBreakerProcessor::WaveView wave;
     LoafBreakerProcessor::PicView pic;           // the kick's or a drum's picture (lb_pic)
     int picZoom = 0;                             // its view in ms (0: the tab's own)
+    int keySel = -1;                             // the key whose settings are shown (black * 32 + i; -1 none)
+    lb_keyknobs_t kk {};
+    uint32_t kkSerial = 0;
+    void selectKey(int black, int i);            // (again on the same key: closed)
+    int waveStyleB = 0, waveStyleS = 0;          // the break's and the sounds' waveform looks (ui::WAVE_*; settings)
+    int waveStyle(bool sound) const { const int st = sound ? waveStyleS : waveStyleB; return st == 5 ? 1 + juce::jlimit(0, 3, m.wstyle) : st; }   // (5: ui::WAVE_FM1, the FM-1 own)
+    void setWaveStyle(bool sound, int st);
     bool padsOpen = false;                       // the pads open (big) or folded to a strip
     void togglePads();
     int heroKind() const;                        // what is drawn big: -1 nothing, 0 the kick, 1..3 a drum, 9 the break

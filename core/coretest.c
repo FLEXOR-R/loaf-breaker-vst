@@ -106,6 +106,30 @@ int main(void)
         lb_lights(l);
         check(l[0] != 0u && (l[2] | l[3] | l[4]) != 0u && l[5] <= 2u, "the lights");
     }
+    {                                    /* a key's own settings (lb_key_knobs): a white key's PITCH turned, KIL's LATCH */
+        lb_keyknobs_t kk;
+        int ok = lb_key_knobs(0, 0, &kk) && kk.n == 4 && !strcmp(kk.name[1], "PITCH"), kil = -1;
+        char was[20];
+        strcpy(was, kk.val[1]);
+        lb_key_knob_turn(0, 0, 1, 2);
+        lb_key_knobs(0, 0, &kk);
+        printf("     white key 1: PITCH %s -> %s\n", was, kk.val[1]);
+        ok = ok && strcmp(was, kk.val[1]) != 0;
+        lb_key_knob_turn(0, 0, 1, -2);
+        for (i = 0; i < 12; i++)
+            if (lb_key_knobs(1, i, &kk) && !strcmp(kk.fn, "KICKS OFF")) kil = i;
+        if (kil >= 0) {
+            lb_key_knobs(1, kil, &kk);
+            strcpy(was, kk.val[0]);
+            lb_key_knob_turn(1, kil, 0, strcmp(was, "ON") ? 1 : -1);
+            lb_key_knobs(1, kil, &kk);
+            printf("     KIL (black %d): %s %s -> %s\n", kil + 1, kk.name[0], was, kk.val[0]);
+            ok = ok && !strcmp(kk.name[0], "LATCH") && strcmp(was, kk.val[0]) != 0;
+            lb_key_knob_turn(1, kil, 0, strcmp(was, "ON") ? -1 : 1);
+        } else
+            printf("     (no KIL key in this layout)\n");
+        check(ok, "a key's settings read and turned (white key, KIL's LATCH)");
+    }
     {                                    /* the FM-1's SELECT (lb_turn_hw) the tempo on HOME, the VST's (lb_turn) never */
         lb_model_t m;
         float b0, b1, b2;

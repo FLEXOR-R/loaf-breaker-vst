@@ -34,7 +34,7 @@ public:
     void setStateInformation(const void*, int) override;
 
     // the editor's side: commands queued for the audio thread, the screen and LEDs read back
-    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet, CmdBreak, CmdTrack };
+    enum Cmd : uint8_t { CmdButton, CmdKey, CmdTurn, CmdTempo, CmdStep, CmdSet, CmdBreak, CmdTrack, CmdKeyKnob };
     void send(Cmd c, int a, int b);
     void step(int op, int a, int b, int c, int d);   // a sequencer edit (lb_step)
     // the page as menus (lb_scan, lb_options, lb_set): every part of the tab shown, each setting's values
@@ -98,6 +98,11 @@ public:
     Fm1Link link;
     // the FM-1 as the controller (Fm1Ctl.h): on / off (kept in the user's settings), its state (0 off, 1 waiting for
     // the FM-1, 2 playing it), the keys (bit k: key k, 0..26) and buttons (bit B_*) it holds now, for the pads
+    // a key's own settings (FLEXOR: "gérer les paramètres des touches du clavier en faisant un clic gauche dessus"): the key
+    // looked at (black 0 a white key 0..15, 1 a black key 0..10, 11 the REC key; -1 none), its knobs read 30 a second
+    void keyKnobsWant(int black, int i) { kkWant = black < 0 ? -1 : black * 32 + i; }
+    bool keyKnobsIfNew(uint32_t& serial, lb_keyknobs_t& out);
+    void keyKnobTurn(int black, int i, int k, int d);
     void setController(bool on);
     bool controller() const { return ctlWant.load(); }
     int controllerState() const { return ctlState.load(); }
@@ -200,6 +205,9 @@ private:
     // the controller (the audio thread's, but the atomics)
     Fm1Ctl ctl;
     std::atomic<bool> ctlWant { false };
+    std::atomic<int> kkWant { -1 };
+    lb_keyknobs_t kkBuf {};
+    uint32_t kkSerial = 0;
     std::atomic<int> blockSize { 512 };
     std::atomic<int> ctlState { 0 };
     std::atomic<uint32_t> ctlKeys { 0 }, ctlBtns { 0 };

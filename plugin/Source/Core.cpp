@@ -97,7 +97,7 @@ bool Core::load(juce::String& error)
     if (field == nullptr) { error = "LOAF BREAKER: " name " missing in the core"; unload(); return false; }
     LB_FN(abi, "lb_abi") LB_FN(init, "lb_init") LB_FN(ms, "lb_ms") LB_FN(audio, "lb_audio")
     LB_FN(midiIn, "lb_midi_in") LB_FN(midiOut, "lb_midi_out") LB_FN(button, "lb_button") LB_FN(key, "lb_key")
-    LB_FN(turn, "lb_turn") LB_FN(tempo, "lb_tempo") LB_FN(seq, "lb_seq") LB_FN(step, "lb_step") LB_FN(patterns, "lb_patterns") LB_FN(scan, "lb_scan") LB_FN(options, "lb_options") LB_FN(set, "lb_set") LB_FN(master, "lb_master") LB_FN(screen, "lb_screen") LB_FN(leds, "lb_leds") LB_FN(lights, "lb_lights") LB_FN(turnHw, "lb_turn_hw")
+    LB_FN(turn, "lb_turn") LB_FN(tempo, "lb_tempo") LB_FN(seq, "lb_seq") LB_FN(step, "lb_step") LB_FN(patterns, "lb_patterns") LB_FN(scan, "lb_scan") LB_FN(options, "lb_options") LB_FN(set, "lb_set") LB_FN(master, "lb_master") LB_FN(screen, "lb_screen") LB_FN(leds, "lb_leds") LB_FN(lights, "lb_lights") LB_FN(turnHw, "lb_turn_hw") LB_FN(keyKnobs, "lb_key_knobs") LB_FN(keyKnobTurn, "lb_key_knob_turn")
     LB_FN(playing, "lb_playing") LB_FN(flashSize, "lb_flash_size") LB_FN(flashGet, "lb_flash_get")
     LB_FN(flashSet, "lb_flash_set") LB_FN(save, "lb_save") LB_FN(sync, "lb_sync") LB_FN(bank, "lb_bank")
     LB_FN(breaks, "lb_breaks") LB_FN(fm1Export, "lb_fm1_export")
