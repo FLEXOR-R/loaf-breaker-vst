@@ -2563,6 +2563,8 @@ struct MachineWindow : juce::DocumentWindow
             if (auto* d = ds.getPrimaryDisplay()) b = b.withPosition(d->userArea.getRight() - 520, d->userArea.getY() + 60);
         }
         setBounds(b);
+        setAlwaysOnTop(true);            // (FLEXOR: "qu'il reste toujours en premier plan par rapport a la vst"; the
+                                         // editor's timer lets it go while another application is in front)
         setVisible(true);
     }
     LBE& ed;
@@ -2691,6 +2693,12 @@ void LoafBreakerEditor::paint(juce::Graphics& g) { g.fillAll(ui::cur().bg); }
 void LoafBreakerEditor::timerCallback()
 {
     proc.idlePump();                     // (no audio running: the firmware runs on all the same)
+    if (machineWin != nullptr) {         // the separate preview above the VST (and its DAW) while they are in front,
+                                         // not above the other applications
+        const bool fg = juce::Process::isForegroundProcess();
+        if (fg != machineWin->isAlwaysOnTop())
+            machineWin->setAlwaysOnTop(fg);
+    }
     {                                    // the FM-1 as the controller: its state said, its hands on the pads
         const int cs = proc.controllerState();
         if (cs != ctlShown) {
