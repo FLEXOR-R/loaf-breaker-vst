@@ -803,6 +803,7 @@ bool LoafBreakerProcessor::exportFm1(juce::MemoryBlock& image, juce::String& rep
 bool LoafBreakerProcessor::importFm1(const juce::MemoryBlock& image, juce::String& report)
 {
     {
+        const juce::ScopedLock pl(picLife);  // (26 Nov 2026: the pictures' thread held off while the core is rewritten)
         const juce::ScopedLock sl(lock);
         if (! ready || ! core.loaded())
             return false;
@@ -845,6 +846,7 @@ bool LoafBreakerProcessor::putFm1(const juce::MemoryBlock& fm1, const std::vecto
 bool LoafBreakerProcessor::takeFm1(const juce::MemoryBlock& fm1, const std::vector<lb_pick_t>& picks, juce::String& report)
 {
     {
+        const juce::ScopedLock pl(picLife);
         const juce::ScopedLock sl(lock);
         if (! ready || ! core.loaded())
             return false;

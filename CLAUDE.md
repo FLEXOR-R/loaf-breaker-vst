@@ -192,6 +192,7 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   taken by its column, its gain alone; the frequencies their own settings', drawn from the last seen (hzSeen).
   MachineWindow and MasterWindow read their saved place before sizing themselves (`ready`: the window's own sizing
   had been kept as the player's, 240 x 240 each time).
+- Windows and full screen (26 Nov 2026, FLEXOR: "quand j'utilise le bouton cliquable pour agrandir la fenêtre elle n'est pas a l'échelle et le bas va un peu plus bas et n'est pas visible"): the header's window button (screenMode 3) no longer uses the OS's maximise (it ran under the taskbar): the window set to the display's userArea, its native frame inside it (peer getFrameSizeIfPresent); back: its place before. MachineWindow and MasterWindow keep their saved place on a screen there is now (`onScreen`: a monitor unplugged, the title bar always reachable, the preview square). importFm1 / takeFm1 hold picLife too (the pictures' thread off while the core is rewritten). "Tout récupérer du FM-1" crashed for FLEXOR: not reproduced here (the core imports real 0.9.81 backups, BEGINNER and EXPERT, all groups, 40 corrupted ones, then every page scanned: no fault).
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours

@@ -3078,6 +3078,21 @@ struct KeyPanel : Part
 };
 
 // ------------------------------------------------------------------------- the FM-1's screen, its own window ---
+// (a floating window's saved place kept on a screen there is now: a monitor unplugged, a resolution changed, never a
+// window out of reach; its title bar always on the screen's usable area)
+static juce::Rectangle<int> onScreen(juce::Rectangle<int> b)
+{
+    const auto& ds = juce::Desktop::getInstance().getDisplays();
+    const auto* d = ds.getDisplayForRect(b);
+    if (d == nullptr) d = ds.getPrimaryDisplay();
+    if (d == nullptr) return b;
+    const auto a = d->userArea.withTrimmedTop(32);   // (room above for its native bar)
+    const float k = juce::jmin(1.0f, (float) a.getWidth() / (float) juce::jmax(1, b.getWidth()),
+                               (float) a.getHeight() / (float) juce::jmax(1, b.getHeight()));   // (its shape kept: the preview square)
+    b.setSize((int) (b.getWidth() * k), (int) (b.getHeight() * k));
+    return b.constrainedWithin(a);
+}
+
 // (FLEXOR: "pouvoir aussi mettre l'aperçu fm 1 dans une fenêtre séparée"): a window of the desktop, moved and sized
 // as any (on another screen too), its place kept (settings "machineWin"); the keys go on to the editor's
 struct MachineWindow : juce::DocumentWindow
@@ -3110,7 +3125,7 @@ struct MachineWindow : juce::DocumentWindow
             b = { 0, 0, 480, 480 };
             if (auto* d = ds.getPrimaryDisplay()) b = b.withPosition(d->userArea.getRight() - 520, d->userArea.getY() + 60);
         }
-        setBounds(b);
+        setBounds(onScreen(b));
         setAlwaysOnTop(true);            // (FLEXOR: "qu'il reste toujours en premier plan par rapport a la vst"; the
                                          // editor's timer lets it go while another application is in front)
         setVisible(true);
@@ -3141,7 +3156,7 @@ struct MasterWindow : juce::DocumentWindow
             b = { 0, 0, 900, 200 };
             if (auto* d = ds.getPrimaryDisplay()) b = b.withPosition(d->userArea.getX() + 60, d->userArea.getY() + 60);
         }
-        setBounds(b);
+        setBounds(onScreen(b));
         setAlwaysOnTop(true);            // (FLEXOR: "la superposer": above every window, whatever is in front)
         setVisible(true);
         ready = true;
@@ -3689,11 +3704,18 @@ void LoafBreakerEditor::screenMode(int mode)
         nativeBar = dw->isUsingNativeTitleBar();
     }
     if (desk.getKioskModeComponent() != nullptr) desk.setKioskModeComponent(nullptr, false);
-    if (screen == 3 && mode != 3) dw->setFullScreen(false);
-    if (mode == 3) {                         // (FLEXOR: "plein écran avec bordure": the window maximised, its bar kept)
+    if (dw->isFullScreen()) dw->setFullScreen(false);   // (an older maximise, the OS's own)
+    if (mode == 3 && disp) {                 // (FLEXOR: "plein écran avec bordure": the window over the screen's usable
+                                             // area, its bar kept; 26 Nov 2026, FLEXOR: "pas a l'echelle et le bas va un
+                                             // peu plus bas": the OS's maximise ran under the taskbar, so the window is
+                                             // set to the area itself, its native frame inside it)
         dw->setUsingNativeTitleBar(nativeBar);
         dw->setTitleBarHeight(titleH > 0 ? titleH : 26);
-        dw->setFullScreen(true);
+        auto area = disp->userArea;
+        if (auto* peer = dw->getPeer())
+            if (const auto fr = peer->getFrameSizeIfPresent())
+                area = fr->subtractedFrom(area);
+        dw->setBounds(area);
     } else if (mode == 1) {
         dw->setUsingNativeTitleBar(false);
         dw->setTitleBarHeight(0);
