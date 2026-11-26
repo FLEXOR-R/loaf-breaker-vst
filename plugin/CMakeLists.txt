@@ -25,6 +25,8 @@ juce_add_plugin(LoafBreaker
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Drum
+    ICON_BIG Resources/icon.png          # (26 Nov 2026, FLEXOR: "le personnage du VST soit l'icone du .exe": the LOAF LORD)
+    ICON_SMALL Resources/icon_small.png
     FORMATS ${FORMATS})
 juce_add_binary_data(LoafAssets SOURCES Resources/BarlowCondensed-Medium.ttf Resources/BarlowCondensed-SemiBold.ttf
     Resources/BarlowCondensed-Bold.ttf Resources/loaflord_face.png Resources/loaflord_title.png)
