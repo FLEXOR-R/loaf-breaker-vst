@@ -937,7 +937,7 @@ struct MenuContent : Part
         bool listed = false;             // (a part of one list: its values listed whole, PRESET)
         bool fxPick = false;             // (an effect's page: the effect, picked by PRESETS)
     };
-    struct Card { juce::String title, sub; juce::Colour chip; juce::Rectangle<float> r; bool live = false, faders = false, rings = false, eq = false; std::vector<Param> ps; };
+    struct Card { juce::String title, sub; juce::Colour chip; juce::Rectangle<float> r; bool live = false, faders = false, rings = false, eq = false, eqPre = false; std::vector<Param> ps; };
     // an EQ's bands (the kick's EQ BANDS, an EQ in the chain): its curve, its three points dragged
     static bool eqFor(const Card& c)
     {
@@ -946,6 +946,19 @@ struct MenuContent : Part
             if ((q.name == "LOW" || q.name == "MID" || q.name == "HIGH") && q.val.containsIgnoreCase("DB")) n++;
         return n == 3;
     }
+    // (FLEXOR: "la section pré-EQ visuelle comme la section EQ des FX ou du kick ... les bouger de haut en bas, mais
+    // aussi de gauche à droite"): the kick's PRE EQ (DIST › PRE EQ: LOW, LO FREQ, MID, MID FREQ; PRE EQ + its HIGH,
+    // HI FREQ, MID Q): the curve on PRE EQ's card, each point its gain up / down and its frequency sideways
+    static bool eqPreFor(const Card& c)
+    {
+        if (c.title != "PRE EQ") return false;
+        int n = 0;
+        for (auto& q : c.ps)
+            if ((q.name == "LOW" || q.name == "MID") && q.val.containsIgnoreCase("DB")) n++;
+        return n == 2;
+    }
+    bool preEq() const { for (auto& c : cards) if (c.eqPre) return true; return false; }
+    float eqRange() const { return preEq() ? 18.0f : 12.0f; }   // (the PRE EQ's bands -18 .. +18 dB, the EQs' -12 .. +12)
     static float parseHz(const juce::String& v) { const auto t = v.toUpperCase(); return t.getFloatValue() * (t.contains("KHZ") ? 1000.0f : 1.0f); }
     const Param* findP(const juce::String& name) const { for (auto& c : cards) for (auto& q : c.ps) if (q.name == name) return &q; return nullptr; }
     Param* findPm(const juce::String& name) { for (auto& c : cards) for (auto& q : c.ps) if (q.name == name) return &q; return nullptr; }
@@ -968,14 +981,20 @@ struct MenuContent : Part
         const auto p = eqPoints();
         auto* qq = findP("MID Q");
         const float q = qq ? juce::jmax(0.2f, qq->val.getFloatValue()) : 1.1f;
-        const float lo = p[0].db / (1.0f + std::pow(hz / p[0].hz, 2.0f)), hi = p[2].db / (1.0f + std::pow(p[2].hz / hz, 2.0f));
         const float mid = p[1].db / (1.0f + std::pow(q * (hz / p[1].hz - p[1].hz / hz), 2.0f));
+        if (preEq()) {                       // (the PRE EQ's three are bells, LOW's and HIGH's Q 0.8: the firmware's kick.c)
+            auto bell = [&](const EqPt& e) { return e.db / (1.0f + std::pow(0.8f * (hz / e.hz - e.hz / hz), 2.0f)); };
+            return bell(p[0]) + mid + bell(p[2]);
+        }
+        const float lo = p[0].db / (1.0f + std::pow(hz / p[0].hz, 2.0f)), hi = p[2].db / (1.0f + std::pow(p[2].hz / hz, 2.0f));
         auto* lv = findP("LEVEL");
         return lo + mid + hi + (lv && lv->val.containsIgnoreCase("DB") ? lv->val.getFloatValue() : 0.0f);
     }
     juce::Rectangle<float> eqArea(const Card& c) const { return { c.r.getX() + 14.0f, c.r.getY() + HEAD_H, c.r.getWidth() - 28.0f, c.r.getHeight() - HEAD_H - 44.0f }; }
     static float eqX(juce::Rectangle<float> a, float hz) { return a.getX() + std::log(hz / 20.0f) / std::log(1000.0f) * a.getWidth(); }
-    static float eqY(juce::Rectangle<float> a, float db) { return a.getCentreY() - db / 15.0f * (a.getHeight() * 0.5f - 6.0f); }
+    float eqY(juce::Rectangle<float> a, float db) const { return a.getCentreY() - db / (eqRange() + 3.0f) * (a.getHeight() * 0.5f - 6.0f); }
+    float eqDb(juce::Rectangle<float> a, float y) const { return juce::jlimit(-eqRange(), eqRange(), (a.getCentreY() - y) / (a.getHeight() * 0.5f - 6.0f) * (eqRange() + 3.0f)); }
+    static float eqHz(juce::Rectangle<float> a, float x) { return 20.0f * std::pow(1000.0f, juce::jlimit(0.0f, 1.0f, (x - a.getX()) / a.getWidth())); }
     int eqDrag = -1, eqCardI = -1;          // (by index: the cards may be laid out again while it is dragged)
     mutable std::map<juce::String, float> hzSeen;   // (the EQ's frequencies last seen, by kick and name)
     // the FM-1's four knobs (MORE › KNOBS): round, as on the machine
@@ -1080,7 +1099,8 @@ struct MenuContent : Part
             c.faders = fadersFor(c);
             c.rings = ringsFor(c);
             c.faders |= c.rings;                 // (laid out and dragged as faders: columns, up / down)
-            c.eq = eqFor(c);
+            c.eqPre = eqPreFor(c);
+            c.eq = eqFor(c) || c.eqPre;
             int shown = 0;
             for (auto& q : c.ps) shown += q.name.isNotEmpty();
             if (shown == 1 && c.ps.size() == 1 && c.ps[0].kind == menus::List && c.ps[0].n > 1 && c.ps[0].n <= 40)
@@ -1283,7 +1303,7 @@ struct MenuContent : Part
             if (! listed && c.ps.size() == 1 && q.kind == menus::List && q.n > 1 && q.n <= 40) q.listed = true;
             relayout |= was != std::make_tuple(q.kind, q.tiles, q.listed, q.n);
         }
-        for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c)) || c.eq != eqFor(c);
+        for (auto& c : cards) relayout |= c.rings != ringsFor(c) || c.faders != (fadersFor(c) || ringsFor(c)) || c.eq != (eqFor(c) || eqPreFor(c)) || c.eqPre != eqPreFor(c);
         if (relayout) { rebuild(); return; }
         repaint();
         followLive();
@@ -1322,9 +1342,14 @@ struct MenuContent : Part
             g.setColour(sk.dim.withAlpha(0.6f));
             g.drawText(hz >= 1000.0f ? juce::String((int) (hz / 1000.0f)) + "K" : juce::String((int) hz), (int) x + 2, (int) a.getBottom() - 12, 30, 11, juce::Justification::centredLeft);
         }
-        for (float db : { -12.0f, -6.0f, 0.0f, 6.0f, 12.0f }) {
+        for (float db : { -18.0f, -12.0f, -6.0f, 0.0f, 6.0f, 12.0f, 18.0f }) {
+            if (std::abs(db) > eqRange()) continue;
             g.setColour(sk.line.withAlpha(db == 0.0f ? 0.9f : 0.4f));
             g.fillRect(a.getX(), eqY(a, db), a.getWidth(), 1.0f);
+            if (db != 0.0f) {
+                g.setColour(sk.dim.withAlpha(0.5f));
+                g.drawText((db > 0 ? "+" : "") + juce::String((int) db), (int) a.getRight() - 26, (int) eqY(a, db) - 11, 24, 10, juce::Justification::centredRight);
+            }
         }
         juce::Path p, f;
         for (int i = 0; i <= 200; ++i) {
@@ -1350,6 +1375,16 @@ struct MenuContent : Part
             g.setColour(sk.ink);
             g.setFont(ui::labelBold(8.0f));
             g.drawText(N[i], (int) x - 20, (int) y - 22, 40, 12, juce::Justification::centred);
+            if (c.eqPre && eqDrag == i && eqCardI >= 0 && eqCardI < (int) cards.size() && &cards[(size_t) eqCardI] == &c) {
+                auto* gq = findP(pts[(size_t) i].gain);   // (dragged: its gain and its frequency beside it)
+                auto* fq = findP(pts[(size_t) i].freq);
+                const juce::String t = (gq ? gq->val : juce::String()) + "  " + (fq ? fq->val : juce::String());
+                const float tx = x > a.getCentreX() ? x - 132.0f : x + 12.0f;
+                g.setColour(sk.bg.withAlpha(0.85f));
+                g.fillRoundedRectangle(tx, y + 9.0f, 120.0f, 16.0f, 2.5f);
+                g.setColour(sk.white);
+                g.drawText(t, (int) tx, (int) y + 9, 120, 16, juce::Justification::centred);
+            }
         }
     }
     juce::String optAt(const Param& q, int i) const
@@ -1575,7 +1610,7 @@ struct MenuContent : Part
         const int o = q ? optHit(*q, e.position) : -1;
         if (h.first != hoverCard || h.second != hoverParam || o != hoverOpt) { hoverCard = h.first; hoverParam = h.second; hoverOpt = o; repaint(); }
         for (auto& c : cards)                    // (an EQ's curve: its points up / down)
-            if (c.eq && eqArea(c).contains(e.position)) { setMouseCursor(juce::MouseCursor::UpDownResizeCursor); return; }
+            if (c.eq && eqArea(c).contains(e.position)) { setMouseCursor(c.eqPre ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::UpDownResizeCursor); return; }
         setMouseCursor(q && q->kind == menus::Slider && ! q->tiles && q->ctl.contains(e.position) ? (cardOf(q) && cardOf(q)->faders ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::LeftRightResizeCursor)
                        : q && (q->tiles || q->listed) && o >= 0 ? juce::MouseCursor::PointingHandCursor : juce::MouseCursor::NormalCursor);
     }
@@ -1643,7 +1678,9 @@ struct MenuContent : Part
                                                  // faut pas que sur le graphique du kick je puisse changer autre chose
                                                  // que le niveau de dB de low mid et high")
                 for (int i = 0; i < 3; ++i) {
-                    const float d = std::abs(e.position.x - eqX(a, pts[(size_t) i].hz));
+                    const float dx = e.position.x - eqX(a, pts[(size_t) i].hz);
+                    const float dy = c.eqPre ? e.position.y - juce::jlimit(a.getY() + 7.0f, a.getBottom() - 7.0f, eqY(a, pts[(size_t) i].db)) : 0.0f;
+                    const float d = c.eqPre ? std::sqrt(dx * dx + dy * dy * 0.25f) : std::abs(dx);   // (the PRE EQ: the nearest point)
                     if (d < bd) { bd = d; eqDrag = i; }
                 }
                 eqCardI = ci;
@@ -1684,8 +1721,10 @@ struct MenuContent : Part
         if (eqDrag >= 0 && eqCardI >= 0 && eqCardI < (int) cards.size()) {
             const auto a = eqArea(cards[(size_t) eqCardI]);
             const auto pts = eqPoints();
-            const float db = juce::jlimit(-12.0f, 12.0f, (a.getCentreY() - e.position.y) / (a.getHeight() * 0.5f - 6.0f) * 15.0f);
-            eqTo(pts[(size_t) eqDrag].gain, db, false);   // (the gain alone: the frequencies are their own settings')
+            const bool pre = cards[(size_t) eqCardI].eqPre;
+            eqTo(pts[(size_t) eqDrag].gain, eqDb(a, e.position.y), false);   // (the kick's EQ: the gain alone, its frequencies
+                                                                            // their own settings')
+            if (pre) eqTo(pts[(size_t) eqDrag].freq, eqHz(a, e.position.x), true);   // (the PRE EQ: sideways its frequency)
             repaint();
             return;
         }
