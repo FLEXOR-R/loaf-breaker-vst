@@ -210,6 +210,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
+- Firmware 0.9.86 (26 Nov 2026): ARP's tabs ARP BLK SEL BLK ASSIGN K4 MOTION M SET (ASSIGN a list by family, HOME K4,
+  MOTION chains M1+M2 / M3+M4 / M1>M4, M SET), knob functions XSUB FREQ and GATE, black keys XSB and MOT, the sequencer
+  without the black keys' row; the cards show the new tabs through lb_scan as any.
 - Hosts (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio"): VST3 instrument (Ableton Live 10.1+, FL Studio
   20+ on Windows; a Mac needs its own build, none in CI), stereo out, MIDI in. processBlock works out at most
   prepareToPlay's block at a time (its buffers sized for it; FL Studio's blocks vary); lbtest prepares again with a
