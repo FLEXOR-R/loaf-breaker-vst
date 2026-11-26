@@ -207,6 +207,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   eqRange), each point the nearest one where clicked, dragged up / down its gain, sideways its frequency (eqDb, eqHz:
   LOW / LO FREQ, MID / MID FREQ on PRE EQ, HIGH / HI FREQ on PRE EQ +), its values beside it while held. The kick's
   EQ and the chain's stay as they were (the gain alone, FLEXOR's).
+- Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
+  ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
+  OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
 - Hosts (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio"): VST3 instrument (Ableton Live 10.1+, FL Studio
   20+ on Windows; a Mac needs its own build, none in CI), stereo out, MIDI in. processBlock works out at most
   prepareToPlay's block at a time (its buffers sized for it; FL Studio's blocks vary); lbtest prepares again with a
