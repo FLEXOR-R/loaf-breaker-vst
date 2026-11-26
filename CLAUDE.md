@@ -203,6 +203,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   (DIRT until 0.9.81) by either name in PluginEditor.cpp. coretest checks both.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
+- Download links (26 Nov 2026, FLEXOR: "j'apprécie quand tu me mets un lien de téléchargement directement ici"): each
+  reply that brings a TEST or a release gives the zip's direct link (the `vst-test` / `vst-vA.B.C` release's asset)
+  once its run has finished.
 - **The FM-1 first, always** (FLEXOR, 24 Nov 2026: "synchroniser la VST et loaf breaker pour la fm1 ... toujours
   d'abord s'occuper de la fm1, me demander si il faut publier, et ensuite faire les modifs et possiblement la
   publication de la vst"): a change is made in the firmware (FLEXOR-R/loaf-breaker, dev, its TEST) first; then ask
