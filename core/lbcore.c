@@ -779,10 +779,10 @@ uint32_t lb_kick_render(const uint8_t *blob, float *lr, uint32_t frames)
     uint32_t i;
     if (!sy_kblob_ok(blob) || !lb_snap_ready())
         return 0;
-    memcpy(&c, blob + 8, sizeof c);
+    sy_kblob_get(blob, &c);
     snap_take(lb_snapbuf);
     brk_play(0);
-    o.S = &set, o.ST = &steps, o.K2 = &km2, o.KL = &klab, o.KF = &kfxm, o.X = kx2.m;
+    o.S = &set, o.ST = &steps, o.K2 = &km2, o.KL = &klab, o.KF = &kfxm, o.X = kx2.m, o.P = kx2.px, o.fm1 = 0;
     sy_kick_put(&o, set.kslot % KICK_MEMS, &c);
     keq_flat = 0u;
     changed_kick();

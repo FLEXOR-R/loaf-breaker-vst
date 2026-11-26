@@ -71,6 +71,23 @@ int main(void)
         }
         lb_model(&b);
         check(!strcmp(a.dom, b.dom) && !memcmp(a.kval, b.kval, sizeof a.kval), "the VST as it was after hearing it");
+        {                                /* (0.9.82: a kick's PRE EQ and SUB SPLIT, the blob's last 16 bytes, carried into
+                                          * an FM-1 image and read back; an older blob, without them: off) */
+            static uint8_t b2[8192], img2[200000];
+            const uint32_t ks = lb_kick_size(), px = ks - 16u;
+            uint8_t to = 4;
+            uint32_t m3;
+            memcpy(b2, blob, ks);
+            b2[px + 7] = 17;             /* (X FREQ: 120 Hz) */
+            b2[px + 0] = 6;              /* (PRE EQ LOW +6 dB) */
+            m3 = lb_fm1_put_kicks(out, m2, b2, &to, 1, img2, sizeof img2);
+            check(m3 > 0 && lb_kick_read(img2, m3, 4, blob) && blob[px + 7] == 17 && blob[px] == 6,
+                  "a kick's PRE EQ and SUB SPLIT into an FM-1 image and back");
+            b2[4] = (uint8_t)px, b2[5] = (uint8_t)(px >> 8), b2[6] = b2[7] = 0;   /* (as an older blob: shorter) */
+            m3 = lb_fm1_put_kicks(out, m2, b2, &to, 1, img2, sizeof img2);
+            check(m3 > 0 && lb_kick_read(img2, m3, 4, blob) && blob[px + 7] == 0 && blob[px] == 0,
+                  "an older kick file read, its PRE EQ and SUB SPLIT off");
+        }
     }
     {                                    /* the song: a track read, an item added, read back */
         lb_track_t t0, t1;

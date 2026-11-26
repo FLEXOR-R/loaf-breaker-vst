@@ -561,7 +561,7 @@ struct SoundHero : Part
     {
         if (what) return what == 2 ? 300 : 400;
         if (tab == "ATTACK") return 60;
-        if (tab == "BODY" || tab == "DIRT") return 400;
+        if (tab == "BODY" || tab == "DIST" || tab == "DIRT") return 400;   // (DIST: DIRT until 0.9.81)
         if (tab == "TAIL") return 1500;
         return 700;
     }
@@ -646,7 +646,7 @@ struct SoundHero : Part
             g.setFont(ui::label(10.0f));
             g.drawText("...", juce::Rectangle<float>(X0, CY - 20, WW, 40), juce::Justification::centred);
         }
-        if (what == 0 && tabName() == "DIRT") {  // D+ TYPE, big: the curve the kick goes through (its DRIVE bending it)
+        if (what == 0 && (tabName() == "DIST" || tabName() == "DIRT")) {  // D+ TYPE, big: the curve the kick goes through (its DRIVE bending it)
             juce::String type;
             float drive = 0.0f;
             for (auto& pp : ed.parts.parts)

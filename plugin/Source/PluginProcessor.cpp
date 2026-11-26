@@ -931,13 +931,23 @@ juce::MemoryBlock LoafBreakerProcessor::kickRead(const juce::MemoryBlock* fm1, i
     return b;
 }
 
-void LoafBreakerProcessor::kickHear(const juce::MemoryBlock& blob)
+// (0.9.82: a .lbkick saved before the kicks' PRE EQ and SUB SPLIT is shorter: padded to the core's size, the core
+// reading its own length in it and leaving them off)
+static juce::MemoryBlock kickPadded(const juce::MemoryBlock& b, size_t n)
+{
+    juce::MemoryBlock o(b);
+    if (o.getSize() < n) o.setSize(n, true);
+    return o;
+}
+
+void LoafBreakerProcessor::kickHear(const juce::MemoryBlock& blob0)
 {
     std::vector<float> lr(2 * 66150);    // (1.5 s)
     {
         const juce::ScopedLock sl(lock);
-        if (! ready || ! core.loaded() || blob.getSize() != core.kickSize())
+        if (! ready || ! core.loaded() || blob0.getSize() < 8 || blob0.getSize() > core.kickSize())
             return;
+        const juce::MemoryBlock blob = kickPadded(blob0, core.kickSize());
         if (! core.kickRender(static_cast<const uint8_t*>(blob.getData()), lr.data(), 66150))
             return;
     }
@@ -952,7 +962,7 @@ bool LoafBreakerProcessor::putKicksFm1(juce::MemoryBlock& fm1, const std::vector
     if (! ready || ! core.loaded() || blobs.empty())
         return false;
     juce::MemoryBlock all;
-    for (auto& b : blobs) all.append(b.getData(), b.getSize());
+    for (auto& b0 : blobs) { const auto b = kickPadded(b0, core.kickSize()); all.append(b.getData(), core.kickSize()); }
     juce::MemoryBlock out(200000);
     const uint32_t n = core.fm1PutKicks(static_cast<const uint8_t*>(fm1.getData()), (uint32_t) fm1.getSize(), static_cast<const uint8_t*>(all.getData()),
                                         to.data(), (int) blobs.size(), static_cast<uint8_t*>(out.getData()), (uint32_t) out.getSize());
@@ -969,7 +979,7 @@ bool LoafBreakerProcessor::putKicksVst(const std::vector<juce::MemoryBlock>& blo
         if (! ready || ! core.loaded() || blobs.empty())
             return false;
         juce::MemoryBlock all;
-        for (auto& b : blobs) all.append(b.getData(), b.getSize());
+        for (auto& b0 : blobs) { const auto b = kickPadded(b0, core.kickSize()); all.append(b.getData(), core.kickSize()); }
         if (core.vstPutKicks(static_cast<const uint8_t*>(all.getData()), to.data(), (int) blobs.size()) <= 0)
             return false;
         juce::MemoryBlock flash(core.flashSize());

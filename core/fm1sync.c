@@ -23,7 +23,10 @@ typedef struct {                         /* app.c's kx2_t as the FM-1 has it (no
     uint8_t rsv3;
     uint16_t wk[FM1_WK_NB + 1u][BRK_KEYS];
     uint16_t wks[FM1_WK_NB][BRK_KEYS];
+    uint8_t px_tag, px_rsv[3];           /* (0.9.82: each kick's PRE EQ and SUB SPLIT, PX_TAG; an older FM-1's without) */
+    kick_px_t px[KICK_MEMS];
 } kx2_fm1_t;
+#define FM1_KX2_OLD offsetof(kx2_fm1_t, px_tag)   /* (0.9.71-0.9.81's object: an FM-1 still on one refuses a longer) */
 _Static_assert(offsetof(kx2_fm1_t, sp) == offsetof(kx2_t, sp), "kx2's head as the FM-1's");
 _Static_assert(sizeof(kx2_fm1_t) <= PLAT_STORE_MAX, "the FM-1's kx2 is one object");
 
@@ -182,14 +185,28 @@ static void sy_kx2_to_fm1(kx2_fm1_t *o)
     }
     memcpy(o->wk[FM1_WK_NB], kx2.wk[WK_SPLIT], sizeof o->wk[FM1_WK_NB]);
     o->sp_tag = SP_TAG2;
+    o->px_tag = PX_TAG;
+    memcpy(o->px, kx2.px, sizeof o->px);
+}
+static int sy_px_any(const kick_px_t *p, uint32_t nk)   /* (some kick has a PRE EQ or a SUB SPLIT: only then the
+                                          * longer object) */
+{
+    uint32_t i;
+    const uint8_t *b = (const uint8_t *)p;
+    for (i = 0; i < nk * (uint32_t)sizeof(kick_px_t); i++)
+        if (b[i])
+            return 1;
+    return 0;
 }
 static void sy_kx2_from_fm1(const kx2_fm1_t *o, uint32_t n)
 {
     uint32_t f, v;
     kx2_defaults();
     memcpy(&kx2, o, n < offsetof(kx2_t, sp) ? n : offsetof(kx2_t, sp));
-    if (n < sizeof *o)                   /* (an older FM-1's: as app_init reads one) */
+    if (n < FM1_KX2_OLD)                 /* (an older FM-1's: as app_init reads one) */
         return;
+    if (n >= sizeof *o && o->px_tag == PX_TAG)   /* (0.9.82: the kicks' PRE EQ and SUB SPLIT; before: off) */
+        memcpy(kx2.px, o->px, sizeof kx2.px);
     kx2.ch_tag = o->ch_tag;
     memcpy(kx2.chaos, o->chaos, sizeof o->chaos);
     kx2.ch_sw = o->ch_sw;
@@ -247,7 +264,7 @@ uint32_t lb_fm1_export(uint8_t *out, uint32_t cap, char *report, uint32_t rcap)
         sy_steps(sy_buf[st], (uint32_t)sy_len[st], sy_buf[ps], (uint32_t)sy_len[ps], 0);
     i = (uint32_t)sy_at(OBJ_KX2);
     sy_kx2_to_fm1((kx2_fm1_t *)sy_buf[i]);
-    sy_len[i] = (int32_t)sizeof(kx2_fm1_t);
+    sy_len[i] = (int32_t)(sy_px_any(kx2.px, KICK_MEMS) ? sizeof(kx2_fm1_t) : FM1_KX2_OLD);
     if (cap < 20u)
         return 0;
     memcpy(out, "LBRK", 4);
@@ -403,7 +420,9 @@ typedef struct {
     kfxp_t fx[BRK_KFX_SLOTS];
     uint16_t eq[8];
     kick_x2_t x2;
+    kick_px_t px;                        /* (0.9.82: an older blob, SY_KOLD long, without: off) */
 } sy_kick_t;
+#define SY_KOLD ((offsetof(sy_kick_t, px) + 3u) & ~(size_t)3u)
 typedef struct {
     settings_t *S;
     steps_t *ST;
@@ -411,6 +430,8 @@ typedef struct {
     klab_obj_t *KL;
     kfxm_t *KF;
     kick_x2_t *X;
+    kick_px_t *P;                        /* (0.9.82; 0: an older FM-1's object, none yet: made longer if one is put) */
+    int fm1;
 } sy_kobjs_t;
 static int sy_kobjs(int fm1, sy_kobjs_t *o)
 {
@@ -421,6 +442,12 @@ static int sy_kobjs(int fm1, sy_kobjs_t *o)
     o->KL = (klab_obj_t *)sy_ob(fm1, OBJ_KLAB, sizeof(klab_obj_t));
     o->KF = (kfxm_t *)sy_ob(fm1, OBJ_KFXM, sizeof(kfxm_t));
     o->X = x ? (kick_x2_t *)(x + offsetof(kx2_t, m)) : 0;
+    o->fm1 = fm1;
+    o->P = 0;
+    if (!fm1)
+        o->P = kx2.px;                   /* (the VST's: sy_vload has stored all, kx2 is what was saved) */
+    else if (x && sy_len[sy_at(OBJ_KX2)] >= (int32_t)sizeof(kx2_fm1_t) && ((kx2_fm1_t *)x)->px_tag == PX_TAG)
+        o->P = ((kx2_fm1_t *)x)->px;
     return o->S && o->ST && o->K2 && o->KL && o->KF && o->X;
 }
 static float *sy_kf(settings_t *S, uint32_t j, uint32_t i)   /* kfx_f's setting, in that settings' copy */
@@ -455,8 +482,12 @@ static void sy_kick_get(const sy_kobjs_t *o, uint32_t n, sy_kick_t *c)
         memcpy(c->eq, o->KF->k[n].eq, sizeof c->eq);
     }
     c->x2 = o->X[n];
+    if (o->P)
+        c->px = o->P[n];
+    else
+        memset(&c->px, 0, sizeof c->px);
 }
-static void sy_kick_put(const sy_kobjs_t *o, uint32_t n, const sy_kick_t *c)
+static void sy_kick_put(sy_kobjs_t *o, uint32_t n, const sy_kick_t *c)
 {
     settings_t *S = o->S;
     uint32_t j, i, a = n < KMEM_A;
@@ -476,6 +507,16 @@ static void sy_kick_put(const sy_kobjs_t *o, uint32_t n, const sy_kick_t *c)
     memcpy(o->KF->k[n].s, c->fx, sizeof c->fx);
     memcpy(o->KF->k[n].eq, c->eq, sizeof c->eq);
     o->X[n] = c->x2;
+    if (!o->P && o->fm1 && sy_px_any(&c->px, 1u)) {   /* (an FM-1 image before 0.9.82: its kx2 made longer, the others' off) */
+        int k = sy_at(OBJ_KX2);
+        kx2_fm1_t *x = (kx2_fm1_t *)sy_buf[k];
+        memset((uint8_t *)x + sy_len[k], 0, sizeof *x - (uint32_t)sy_len[k]);
+        x->px_tag = PX_TAG;
+        sy_len[k] = (int32_t)sizeof *x;
+        o->P = x->px;
+    }
+    if (o->P)
+        o->P[n] = c->px;
     if (n == S->kslot % KICK_MEMS) {     /* the kick playing there: it becomes this one (its volume kept: kick_mem_go) */
         float vol = S->kick.volume;
         S->kick = c->k;
@@ -761,7 +802,16 @@ int lb_fm1_take(const uint8_t *fm1, uint32_t n, const lb_pick_t *p, int np, char
  * nommer et les ranger"): the plugin keeps them in its library, each a file; "LBK1", its size, the kick whole ---- */
 #define SY_KBLOB_MAGIC 0x314B424Cu       /* "LBK1" */
 uint32_t lb_kick_size(void) { return 8u + (uint32_t)sizeof(sy_kick_t); }
-static int sy_kblob_ok(const uint8_t *b) { return sy_r32(b) == SY_KBLOB_MAGIC && sy_r32(b + 4) == sizeof(sy_kick_t); }
+static int sy_kblob_ok(const uint8_t *b)
+{
+    return sy_r32(b) == SY_KBLOB_MAGIC && (sy_r32(b + 4) == sizeof(sy_kick_t) || sy_r32(b + 4) == SY_KOLD);
+}
+static void sy_kblob_get(const uint8_t *b, sy_kick_t *c)   /* (0.9.82: an older blob, its PRE EQ and SUB SPLIT off) */
+{
+    uint32_t n = sy_r32(b + 4);
+    memset(c, 0, sizeof *c);
+    memcpy(c, b + 8, n < offsetof(sy_kick_t, px) ? n : n == sizeof *c ? n : offsetof(sy_kick_t, px));
+}
 /* kick memory k (0..19) of an FM-1 backup (img) or the VST (img 0) as a blob: 1 done */
 int lb_kick_read(const uint8_t *img, uint32_t n, int k, uint8_t *blob)
 {
@@ -793,7 +843,7 @@ uint32_t lb_fm1_put_kicks(const uint8_t *fm1, uint32_t n, const uint8_t *blobs, 
         sy_kick_t c;
         if (!sy_kblob_ok(b) || to[i] >= KICK_MEMS)
             continue;
-        memcpy(&c, b + 8, sizeof c);
+        sy_kblob_get(b, &c);
         sy_kick_put(&o, to[i], &c);
     }
     return sy_build(out, cap);
@@ -812,7 +862,7 @@ int lb_vst_put_kicks(const uint8_t *blobs, const uint8_t *to, int nk)
         sy_kick_t c;
         if (!sy_kblob_ok(b) || to[i] >= KICK_MEMS)
             continue;
-        memcpy(&c, b + 8, sizeof c);
+        sy_kblob_get(b, &c);
         sy_kick_put(&o, to[i], &c);
         done++;
     }
