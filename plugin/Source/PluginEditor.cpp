@@ -1755,6 +1755,21 @@ struct MenuPage : Part
 // the 64 patterns above; the break's 32 steps (each its slice's own waveform), the kick's 64 and the drums' rows; a
 // step clicked on or off, dragged to paint; its settings, its bar's, the lane's below. Every edit through SEQ's own
 // code (lb_step), its undo too
+// the playhead's colour over a step: the skin's white, else its second colour, else its others, whichever stands out
+// from the step; none does: the step's own, much darker or lighter (FLEXOR, 26 Nov 2026)
+static float colDist(juce::Colour a, juce::Colour b)
+{
+    const float dr = a.getFloatRed() - b.getFloatRed(), dg = a.getFloatGreen() - b.getFloatGreen(), db = a.getFloatBlue() - b.getFloatBlue();
+    return std::sqrt((dr * dr + dg * dg + db * db) / 3.0f);
+}
+static juce::Colour headOver(const ui::Skin& sk, juce::Colour under)
+{
+    for (auto c : { sk.white, sk.hot, sk.accent, sk.ink })
+        if (colDist(c, under) > 0.32f)
+            return c;
+    return under.getPerceivedBrightness() > 0.5f ? under.darker(1.2f) : under.brighter(1.0f);
+}
+
 struct SeqPanel : Part
 {
     explicit SeqPanel(LBE& e) : Part(e) {}
@@ -1874,12 +1889,22 @@ struct SeqPanel : Part
         const bool o = on(r, i);
         const uint8_t b = sb(r, i);
         const float fade = echo ? 0.35f : 1.0f;
-        juce::Colour col = o ? (r == selRow ? sk.hot : sk.accent) : (i % 4 == 0 ? sk.line : sk.panel2);
-        if (now) col = sk.white;
-        g.setColour(col.withMultipliedAlpha(fade));
-        g.fillRect(c);
-        if (now)                                  // (the white frame, the step's own inside)
-            g.setColour((o ? (r == selRow ? sk.hot : sk.accent) : sk.panel2).withMultipliedAlpha(fade)), g.fillRect(c.reduced(3.0f));
+        const juce::Colour stepCol = o ? (r == selRow ? sk.hot : sk.accent) : (i % 4 == 0 ? sk.line : sk.panel2);
+        if (! now) {
+            g.setColour(stepCol.withMultipliedAlpha(fade));
+            g.fillRect(c);
+        } else {                                  // (26 Nov 2026, FLEXOR: "quand elle est blanche et qu'elle va sur une case
+                                                  // blanche ... on ne voit pas bien": a shadow under it, its frame in a
+                                                  // colour of the skin that stands out from the step, the white first,
+                                                  // then the skin's second colour; an active step darker inside)
+            const auto head = headOver(sk, stepCol);
+            g.setColour(juce::Colours::black.withAlpha(0.6f * fade));
+            g.fillRect(c.expanded(2.0f).translated(1.0f, 1.5f));
+            g.setColour(head.withMultipliedAlpha(fade));
+            g.fillRect(c);
+            g.setColour((o ? stepCol.darker(0.45f) : sk.panel2).withMultipliedAlpha(fade));
+            g.fillRect(c.reduced(3.0f));
+        }
         if (o && ! echo) {
             const int hits = (b & 3) + 1;
             for (int k = 1; k < hits; ++k) {      // HITS: the step split
