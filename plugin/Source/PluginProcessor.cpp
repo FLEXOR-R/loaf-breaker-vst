@@ -433,6 +433,9 @@ void LoafBreakerProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
         }
         if (it != events.cend())
             until = juce::jmax(done + 1, (*it).samplePosition);
+        // (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio": FL Studio, among others, may hand a block longer
+        // than prepareToPlay's; the buffers are sized for that one: the samples worked out a prepared block at a time)
+        until = juce::jmin(until, done + juce::jmax(16, blockSize.load()));
         const int m = until - done;
         if (hostRate == CORE_RATE) {
             produceCore(m);

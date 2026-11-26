@@ -84,6 +84,24 @@ int main(int argc, char** argv)
     tail.copyFrom(1, 0, all, 1, (int) rate * 8, (int) rate * 4);
     const double level = rms(tail);
     std::printf("playing: rms %.4f\n", level);
+    // (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio") the host prepared again with a longer maximum (a
+    // buffer setting changed), then blocks of every size up to it, odd ones, a single sample, as FL Studio hands them
+    double bigLevel = 0;
+    {
+        const int maxB = block * 8 + 37;
+        p->prepareToPlay(rate, maxB);
+        static const int SIZES[] = { maxB, 1, 37, 2048, 511, 3, maxB, 1024, 96, maxB };
+        for (int rep = 0; rep < 3; ++rep)
+            for (int sz : SIZES) {
+                juce::AudioBuffer<float> b(2, sz);
+                b.clear();
+                p->processBlock(b, midi);
+                ph.sample += sz;
+                if (rep > 0 && sz >= 1024) bigLevel = std::max(bigLevel, rms(b));
+            }
+        std::printf("blocks of 1 .. %d after a new prepareToPlay: rms %.4f\n", maxB, bigLevel);
+        p->prepareToPlay(rate, block);
+    }
     // the state: saved, and loaded into a second instance
     juce::MemoryBlock st;
     p->getStateInformation(st);
@@ -133,7 +151,7 @@ int main(int argc, char** argv)
         if (w) { os.release(); w->writeFromAudioSampleBuffer(all, 0, all.getNumSamples()); }
     }
     if (ctlP != nullptr) { ctlP->setValue("fm1ctl", false); ctlP->saveIfNeeded(); }
-    const bool ok = level > 0.01 && after < 0.01 && ctlOn > 0.005 && ctlOff < 0.005;
+    const bool ok = level > 0.01 && bigLevel > 0.01 && after < 0.01 && ctlOn > 0.005 && ctlOff < 0.005;
     std::puts(ok ? "OK" : "FAIL: no sound while the host plays, sound after it stopped, or the controller's key not heard");
     return ok ? 0 : 1;
 }

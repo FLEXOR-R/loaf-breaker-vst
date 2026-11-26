@@ -201,6 +201,10 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   kx2), sy_kobjs' `P` (the VST's kx2.px; an older FM-1 image's made longer only when a kick with them is put), the
   kick blob's `px` last (SY_KOLD: an older .lbkick, read with them off; the plugin pads it, kickPadded). The DIST tab
   (DIRT until 0.9.81) by either name in PluginEditor.cpp. coretest checks both.
+- Hosts (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio"): VST3 instrument (Ableton Live 10.1+, FL Studio
+  20+ on Windows; a Mac needs its own build, none in CI), stereo out, MIDI in. processBlock works out at most
+  prepareToPlay's block at a time (its buffers sized for it; FL Studio's blocks vary); lbtest prepares again with a
+  longer maximum and hands blocks of 1 .. 4133 samples.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
   state reload, silence after stop) and pluginval strictness 5, on Linux and Windows in CI.
 - Download links (26 Nov 2026, FLEXOR: "j'apprécie quand tu me mets un lien de téléchargement directement ici"): each
