@@ -224,6 +224,10 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
 - Firmware 0.9.94 (27 Nov 2026): FLEXOR LAYOUT's three layers (alone, SEL, REC: picking it sets REC MODE BLACK KEYS),
   SEL and REC never crossing (a press of one frees the other), SEL + REC clearing on SEQ only, the PRE EQ's Qs as knob
   functions (PRE LOW / MID / HIGH Q: the cards and ARP › ASSIGN through lb_scan as any).
+- Firmware 0.9.95 (27 Nov 2026): RISE's RETURN (its K4, no LATCH), XSUB FREQ's floor at 40 Hz, SATAN 200 out of the
+  FM-1's bank, set2 (the settings past settings_t, after the KICK LAB in OBJ_KLAB: fm1sync copies the object whole, so
+  it travels; knob codes to 255: the kick blobs (.lbkick) will need set2's skx once a code passes 31), CHAOS's styles,
+  MATH SHIFT, big rolls, CHAOS+ (HOME's fifth tab: the cards through lb_scan as any), the CHS key's LATCH and SEED.
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
