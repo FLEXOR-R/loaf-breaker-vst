@@ -214,6 +214,9 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   LOAF LORD rain through lb_scan as any.
 - Firmware 0.9.91 (27 Nov 2026): the PRE EQ's FREQ heard again (0.9.87-0.9.90 wrote each band's Q over its frequency in
   the firmware's kick.c: the VST's 0.9.87 had it too); the FM-1's SEQ grid to its foot (the preview's alone).
+- Firmware 0.9.92 (27 Nov 2026): smoother for live (the DJ and drum filters ~80 ms, the FX slots' knobs and MIX gliding,
+  the SUB SPLIT's fade to OFF, the PRE EQ's bells by band); each PRE band's FREQ 20 Hz .. 12 kHz (the PRE EQ curve's
+  points go that far: its option lists are the firmware's) and K4 RESET (five detents right) on PRE L / M / H.
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
