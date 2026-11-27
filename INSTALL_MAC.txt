@@ -1,0 +1,138 @@
+LOAF BREAKER VST (Mac : Apple Silicon M1-M4 et Intel, macOS 11 ou plus)
+
+LE DEBLOCAGE (une fois, obligatoire)
+Le plugin n'est pas signe par Apple (pas de compte developpeur) : macOS le bloque ("endommage" ou "developpeur non
+identifie"). Apres avoir decompresse le zip, ouvre Terminal (Applications > Utilitaires) et tape, en glissant le
+dossier decompresse a la place de DOSSIER :
+   xattr -cr DOSSIER
+(par exemple : xattr -cr ~/Downloads/LOAF-BREAKER-VST-0.9.95-Mac). Puis copie les fichiers comme ci-dessous.
+
+INSTALLER (Ableton, Logic, FL Studio, Bitwig...)
+1. "LOAF BREAKER.vst3" dans  ~/Library/Audio/Plug-Ins/VST3/
+   "LOAF BREAKER.component" (AU : Logic, GarageBand, Ableton) dans  ~/Library/Audio/Plug-Ins/Components/
+   (dans le Finder : Aller > Aller au dossier..., colle le chemin ; ~ est ton dossier perso).
+2. Dans Ableton : Preferences > Plug-ins, "Use VST3 Plug-in System Folders" et "Use Audio Units" sur On, "Rescan".
+   Dans Logic : il apparait dans Instruments > AU Instruments > FLEXOR (Logic le verifie au premier lancement).
+3. Glisse LOAF BREAKER sur une piste MIDI (ou une piste d'instrument).
+
+LA VERSION AUTONOME (sans DAW)
+"LOAF BREAKER.app" : dans Applications ou ailleurs, double-clic. Si macOS refuse encore : clic droit > Ouvrir.
+
+SUR MAC
+- CTRL dans ce qui suit, c'est CMD (CMD+S sauver, CMD+Z annuler, CMD+K le clavier...).
+- Le FM-1 en USB (le lien, la sauvegarde, le mode controleur) passe par le MIDI de macOS : rien a installer.
+- Premiere version Mac : dis a FLEXOR ce qui ne marche pas.
+
+CE QUE LA VERSION MAC A EN PLUS DU FM-1
+- Les 98 breaks de la bibliotheque (le FM-1 en a 8), en qualite CD : 44,1 kHz, 16 bits, sans compression
+  (le FM-1 : 22 kHz compresses). ALGORITHM les parcourt du plus lent au plus rapide.
+- Les touches blanches et le split gardes pour chacun des 98 breaks.
+- Le delai DUB jusqu'a 2 secondes (toutes les valeurs a tous les tempos) ; une sortie 24 bits.
+
+LE CLAVIER (tout se change dans MENU > Clavier, ou CTRL+K)
+- F1 a F8 : LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM. TAB / SHIFT+TAB : l'onglet suivant, precedent.
+- ESPACE : PLAY. CTRL+S : sauver. CTRL+Z : annuler (pattern). CTRL+C / CTRL+V : copier, coller le pattern.
+- CTRL+B : la liste des breaks. C / V : break precedent, suivant (de la playlist). CTRL+P : la playlist.
+- CTRL+G : la gestion. F9 : l'apercu du FM-1, l'afficher ou le masquer (MENU › Apercu du FM-1 : dans la fenetre ou
+  dans une fenetre separee, qui reste devant la VST ; sa croix le masque, F9 ou MENU › Apercu du FM-1 › Afficher le
+  remet). N / M : tempo -1 / +1.
+- Dans le sequenceur (PATTERN) : fleches pour se deplacer (SHIFT : un temps, CTRL : une mesure, DEBUT / FIN),
+  ENTREE pose ou enleve le pas, SUPPR l'enleve, ALT+HAUT/BAS les HITS (le break : sa slice), SHIFT+HAUT/BAS la note du
+  kick (le break : son pitch ; les autres : la chance), CTRL+HAUT/BAS la chance (le break : ses repetitions),
+  ALT+GAUCHE/DROITE le nudge (le break : a l'envers), [ et ] decalent toute la ligne d'un pas.
+- Dans les menus : HAUT / BAS choisissent un reglage (un cadre le montre), GAUCHE / DROITE changent sa valeur
+  (SHIFT : un grand pas), ENTREE ouvre sa liste.
+
+LE MORCEAU (SONG > TRACKS)
+- Les 8 tracks sur une ligne de temps : chaque element est un bloc aussi long qu'il joue. Glisser un bloc : le
+  deplacer. Molette : ses boucles. Double-clic : son pattern. + : ajouter un pattern, un DROP ou un trou. > : jouer la
+  track. LOOP / STOP / HOLD : ce qu'elle fait a la fin. Dessous : le pattern, les boucles, le break, le kick de
+  l'element choisi, le deplacer, le dupliquer, le supprimer.
+- Comme un piano roll : la palette au-dessus des tracks (< P1-16 > pour changer de groupe, DROP, GAP) se glisse
+  ou il faut, entre deux blocs ; un clic dessus l'ajoute apres le bloc choisi.
+- Le bord droit d'un bloc s'etire : ses boucles (x1 a x16). Un bloc se glisse entre deux autres, ou sur une autre
+  track ; avec CTRL (ou ALT) c'est une copie.
+- Clic droit sur un bloc : inserer avant / apres, remplacer, boucles, dupliquer, supprimer. Sur le vide d'une track :
+  ajouter a la fin.
+
+LES BREAKS
+- Clic sur le nom du break (en haut) : tous les breaks, par categorie comme sur le site (FLEXOR, CYBERWORM AMENS,
+  HUGE AMEN PACK, CLASSICS, et MES BREAKS) ; la playlist ; ajouter le break a la playlist.
+- < PLAYLIST > sous le nom : le break precedent, suivant de ta playlist (dans l'ordre que tu veux ; vide : tous les
+  breaks). Clic sur PLAYLIST : la ranger (glisser une ligne), en ajouter, en retirer. Elle est gardee avec le projet.
+- Les curseurs longs (filtres...) ont une zone OFF plus large, ombree ; double-clic : retour a OFF.
+
+LA GESTION : VST, BIBLIOTHEQUE DE KICKS, FM-1 (MENU > GESTION)
+- Trois colonnes : les 20 kicks, 64 patterns et 8 tracks de la VST ; ta bibliotheque de kicks sur le Mac ; ceux du
+  FM-1 (LIRE LE FM-1 en USB, FM-1 a l'arret, ou OUVRIR UNE SAUVEGARDE .BAK).
+- ">" ecoute un kick (de la VST, de la bibliotheque ou du FM-1) avant de le remplacer. Un clic coche.
+- VST + BIBLIO >> FM-1 : ce qui est coche (et les kicks coches de la bibliotheque) va dans le FM-1 ; le reste de la
+  machine ne bouge pas (ses breaks, ses reglages, ses autres kicks et patterns). Puis ECRIRE SUR LE FM-1 (il demande
+  de confirmer : SEL oui) ou ENREGISTRER LE .BAK.
+- FM-1 + BIBLIO >> VST : l'inverse.
+- KICKS COCHES >> BIBLIOTHEQUE : chaque kick devient un fichier .lbkick dans Documents/LOAF BREAKER/Kicks, autant que
+  tu veux. Double-clic : renommer. Clic droit : ranger dans un dossier, supprimer. NOUVEAU DOSSIER pour trier.
+- OU ILS ARRIVENT : aux memes numeros, ou a partir d'un numero choisi (K, P, T).
+
+LE LIEN AVEC LE FM-1 (bouton FM-1, en haut)
+- "Envoyer tout au FM-1" : tes kicks, patterns, song et reglages du VST vont sur la machine. Le FM-1 doit etre
+  branche en USB, arrete (pas en lecture), avec LOAF BREAKER a jour (la version avec la sauvegarde USB). Il verifie
+  tout puis demande sur son ecran : SEL = oui, HOME = non. Il redemarre avec.
+- "Recuperer tout du FM-1" : l'inverse, ce qui est sur la machine arrive dans le VST.
+- Les breaks sont traduits par leur nom. Un break du VST que le FM-1 n'a pas (le FM-1 en a 8) est remplace par
+  celui du FM-1 au tempo le plus proche ; le message dit lesquels.
+- Sur Mac, Ableton et le VST peuvent ouvrir le FM-1 en meme temps ; si le transfert hesite, desactive le FM-1 dans
+  Preferences > Link/Tempo/MIDI le temps du transfert, ou passe par la version autonome.
+- "Exporter / Importer une sauvegarde (.bak)" : la meme chose en fichier ; la page Backup du site LOAF BREAKER
+  les envoie aussi au FM-1 depuis Chrome.
+
+JOUER LE VST AVEC LE FM-1 (MENU > Machine FM-1 > Jouer le VST avec le FM-1)
+- Le FM-1 branche en USB devient le clavier du VST : ses touches blanches et noires, ses boutons, ses 7 encodeurs
+  et son MASTER jouent le VST, et ses LEDs s'allument comme celles du VST (les touches appuyees s'allument aussi sur
+  les pads du VST). Le FM-1 se tait pendant ce temps, son ecran dit CONTROLLER.
+- Tout marche comme sur la machine : PLAY, SEL (tenu ou double appui), les combinaisons, les pages et leurs
+  onglets, et SELECT change le tempo comme sur le FM-1 (dans la VST elle-meme, SELECT ne le change jamais).
+- Les touches blanches du FM-1 jouent les tranches partout, sequenceur compris (comme sur HOME) : les pas se posent
+  a la souris dans la VST.
+- Il faut LOAF BREAKER 0.9.79 ou plus sur le FM-1.
+- La latence vient surtout du tampon audio du Mac : MENU > Machine FM-1 l'affiche. Dans la version autonome :
+  Options > Audio, tampon 128 (ou 64) ; dans Ableton : Preferences > Audio, Buffer Size 128 (Core Audio). Pendant la lecture, une touche blanche part au
+  prochain point de la grille (SNAP), comme sur le FM-1. En haut a droite, "FM-1 ..." = en attente, "FM-1 *" = connecte.
+- Debranche le FM-1 ou decoche l'option : il redevient lui-meme en 3 secondes, ses reglages intacts.
+- L'option est gardee : le VST reprend la main sur le FM-1 a chaque ouverture tant qu'elle est cochee.
+- Dans Ableton : le plus simple est de laisser le FM-1 desactive dans Preferences > Link/Tempo/MIDI
+  (Entree et Sortie) : le VST ouvre lui-meme le FM-1. Si Ableton garde l'entree du FM-1, route-le vers la piste du
+  VST (Entree MIDI : FM-1, canal 16, Monitor : In) : les touches passent par Ableton, les LEDs par le VST tant que
+  la sortie du FM-1 reste libre.
+
+L'INTERFACE
+- En haut : les categories (LIVE, SOUNDS, PATTERN, SONG, MIX, EFFECTS, ARP, SYSTEM), puis leurs onglets.
+- Dessous, le son en grand : sur SOUNDS > KICK, le kick tel que le moteur du FM-1 le joue (ATTACK : ses 60
+  premieres ms, BODY : 400 ms, TAIL : le kick entier et sa fin ; 60 MS / 400 MS / 1.5 S / AUTO pour changer), a cote
+  le kick (ses 20 memoires, ECOUTER, COPIER / COLLER, ses couches) ; sur DRUMS la snare, le hat ou le clap ; ailleurs
+  le break, detaille, ses slices (un clic joue la slice).
+- Puis toutes les parties de l'onglet, une carte chacune : les couches ont leur couleur partout (SUB rouge, PUNCH
+  orange, GRIT vert, CLICK bleu, TOK violet), les choix qui se dessinent sont des vignettes (MODE, CURVE, D+ TYPE...),
+  les niveaux des faders, les 4 potards du FM-1 des potards ronds. Sur FX1 / FX2 (et EFFECTS) : l'effet a choisir.
+- MASTER : en haut a droite, la forme d'onde de la sortie (les messages du FM-1 par-dessus). + l'agrandit sur la
+  page, ^ l'ouvre dans sa propre fenetre, toujours au-dessus des autres, a poser sur n'importe quel ecran.
+- L'EQ du kick : sur la courbe, un point ne monte et ne descend qu'en dB ; ses frequences se reglent dans leurs
+  propres reglages, la courbe les suit.
+- PADS (en bas) : PADS deplie les pads en grand, REPLIER les replie. Un clic gauche sur un pad ouvre ses reglages
+  (touche blanche : LENGTH, PITCH, MODE, DECAY ; touche noire : ceux de sa fonction, LATCH compris), un clic droit
+  le joue. En mode controleur, une touche appuyee sur le FM-1 montre les siens.
+- Les formes d'onde : en haut a droite du break et du kick, ACTUEL, RGB, SERATO, 3 BAND, BLUE ou FM-1 (le reglage
+  WAVE TYPE de la machine).
+- En mode controleur, la barre FM-1 KNOBS (au-dessus des pads) dit ce que font K1 a K4, et la carte qu'ils reglent
+  marque K1..K4. Le potard PRESETS parcourt les kicks KICK 1-20 (la grille de la carte du kick) ; la liste PRESET
+  charge un kick integre dans le kick en cours.
+- SHIFT (maintenu) : les reglages de SEL.
+- MENU : le skin (LOAF LORD par defaut), le clavier (chaque touche reglable), l'ecran du FM-1 (a afficher ou non),
+  Machine FM-1 (le jouer en controleur, la gestion, les sauvegardes).
+
+DANS ABLETON
+- LOAF BREAKER suit le tempo d'Ableton et demarre a la mesure suivante quand tu lances la lecture
+  (case "Host sync" en haut ; decoche-la pour utiliser son propre PLAY).
+- Les notes MIDI : 48 a 63 (C3 a D#4) jouent les slices, 36 le kick, 38 la snare, 39 le clap, 42 le hat.
+- La sauvegarde du projet Ableton garde tout (kicks, patterns, splits, chaos...).
+- Clavier de l'ordinateur : ESPACE = PLAY ; les lettres jouent les touches (affichees dessus).

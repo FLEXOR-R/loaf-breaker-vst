@@ -6,6 +6,9 @@
 #include <string.h>
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <dlfcn.h>
+#include <mach-o/loader.h>
 #else
 #define _GNU_SOURCE 1
 #include <link.h>
@@ -38,6 +41,45 @@ static void snap_find(void)
             snap_seg[snap_nseg].n = s->Misc.VirtualSize;
             snap_nseg++;
         }
+}
+#elif defined(__APPLE__)
+/* macOS: the image's writable segments (__DATA, __DATA_DIRTY ...), from its own load commands; the *_CONST ones are
+ * made read-only once loaded (as ELF's RELRO): never written, so never put back */
+static void snap_find(void)
+{
+    Dl_info di;
+    const struct mach_header_64 *h;
+    const struct load_command *lc;
+    uintptr_t slide = 0;
+    unsigned i, pass;
+    snap_nseg = 0;
+    if (!dladdr(&snap_mark, &di) || !di.dli_fbase)
+        return;
+    h = (const struct mach_header_64 *)di.dli_fbase;
+    if (h->magic != MH_MAGIC_64)
+        return;
+    for (pass = 0; pass < 2; pass++) {
+        lc = (const struct load_command *)(h + 1);
+        for (i = 0; i < h->ncmds; i++, lc = (const struct load_command *)((const uint8_t *)lc + lc->cmdsize)) {
+            const struct segment_command_64 *sg = (const struct segment_command_64 *)lc;
+            size_t nl;
+            if (lc->cmd != LC_SEGMENT_64)
+                continue;
+            if (pass == 0) {
+                if (!strcmp(sg->segname, "__TEXT"))
+                    slide = (uintptr_t)h - (uintptr_t)sg->vmaddr;
+                continue;
+            }
+            nl = strnlen(sg->segname, 16);
+            if (!(sg->initprot & VM_PROT_WRITE) || !sg->vmsize || snap_nseg >= SNAP_MAX)
+                continue;
+            if (nl >= 6 && !memcmp(sg->segname + nl - 6, "_CONST", 6))
+                continue;
+            snap_seg[snap_nseg].at = (uint8_t *)(slide + (uintptr_t)sg->vmaddr);
+            snap_seg[snap_nseg].n = (size_t)sg->vmsize;
+            snap_nseg++;
+        }
+    }
 }
 #else
 static int snap_cb(struct dl_phdr_info *in, size_t sz, void *u)

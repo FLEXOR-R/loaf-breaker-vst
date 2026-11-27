@@ -3,7 +3,9 @@
 # after the firmware it carries (vst-vA.B.C: the loaf-vA.B.C tag of the firmware submodule's commit). Each builds the
 # Windows plugin (VST3 and Standalone) and checks it as a DAW would (lbtest, pluginval); the repository is private:
 # only its collaborators see them. The firmware's core (lbcore.dll) is built on Linux (MinGW-w64), the plugin on
-# Windows (MSVC, JUCE).
+# Windows (MSVC, JUCE). The Mac version (27 Nov 2026, FLEXOR: "fais une version mac de la VST"; VST3, AU and
+# Standalone, Apple Silicon and Intel in one) is built on a Mac at each release and when run by hand (Run workflow):
+# a private repository's Mac minutes count ten times, so not at every TEST.
 name: Build
 on:
   push:
@@ -48,6 +50,12 @@ jobs:
             build/breaks.bank
             build/breaks.index
             build/coretest.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gen
+          path: |
+            firmware/app/bank_data.h
+            firmware/app/build/gen/
       - name: The plugin on Linux, and its checks (as a DAW loads it; pluginval)
         run: |
           sudo apt-get install -y -qq libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev libxrandr-dev \
@@ -66,6 +74,7 @@ jobs:
 
   windows:
     needs: core
+    if: github.ref_name == 'main' || github.ref_name == 'release'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,6 +140,86 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "vst-v$VERSION" "$PKG.zip" --latest --target "$GITHUB_SHA" \
-            --title "LOAF BREAKER VST $VERSION" \
-            --notes "LOAF BREAKER $VERSION as a plugin (Windows: VST3 for Ableton, and Standalone): the firmware loaf-v$VERSION."
+          if gh release view "vst-v$VERSION" > /dev/null 2>&1; then
+            gh release upload "vst-v$VERSION" "$PKG.zip" --clobber
+          else
+            gh release create "vst-v$VERSION" "$PKG.zip" --latest --target "$GITHUB_SHA" \
+              --title "LOAF BREAKER VST $VERSION" \
+              --notes "LOAF BREAKER $VERSION as a plugin (Windows: VST3 for Ableton, and Standalone; Mac: VST3, AU and Standalone): the firmware loaf-v$VERSION."
+          fi
+
+  mac:
+    needs: [core, windows]
+    if: ${{ !cancelled() && needs.core.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (github.ref_name == 'release' || github.event_name == 'workflow_dispatch') }}
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: The firmware (loaf-breaker) and fm1-base
+        run: |
+          git submodule update --init --depth 50 firmware
+          git -C firmware submodule update --init --depth 1 base
+      - uses: actions/download-artifact@v4
+        with:
+          name: gen
+          path: firmware/app
+      - uses: actions/download-artifact@v4
+        with:
+          name: core
+          path: build
+      - name: The core, for Mac (arm64 + x86_64), and its check
+        run: |
+          core/build_core.sh build/liblbcore.dylib clang
+          lipo -info build/liblbcore.dylib
+          clang -O1 -Icore -arch arm64 -mmacosx-version-min=11.0 -o build/coretest core/coretest.c build/liblbcore.dylib -Wl,-rpath,"$PWD/build"
+          build/coretest   # (the menus' look-ahead and the sequencer, the state put back: Mach-O)
+      - name: The plugin (JUCE, VST3 AU Standalone, universal)
+        run: |
+          command -v ninja > /dev/null || brew install ninja
+          cmake -S plugin -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build/cmake --target LoafBreaker_VST3 LoafBreaker_AU LoafBreaker_Standalone lbtest -j4
+      - name: The core and the breaks inside each bundle, signed (ad hoc); the checks
+        run: |
+          A="build/cmake/LoafBreaker_artefacts/Release"
+          for B in "$A/VST3/LOAF BREAKER.vst3" "$A/AU/LOAF BREAKER.component" "$A/Standalone/LOAF BREAKER.app"; do
+            cp build/liblbcore.dylib "$B/Contents/MacOS/"
+            mkdir -p "$B/Contents/Resources"
+            cp build/breaks.bank build/breaks.index "$B/Contents/Resources/"
+            codesign --force -s - "$B/Contents/MacOS/liblbcore.dylib"
+            codesign --force --deep -s - "$B"
+            codesign --verify --deep "$B"
+          done
+          "build/cmake/lbtest_artefacts/Release/lbtest" "$PWD/$A/VST3/LOAF BREAKER.vst3" mac.wav
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "$A/AU/LOAF BREAKER.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2> /dev/null || true
+          sleep 3
+          auval -v aumu Lbrk Flxr
+      - name: The version (the firmware's)
+        run: |
+          FW="$(git ls-tree HEAD firmware | awk '{print $3}')"
+          V="$(git ls-remote --tags https://github.com/FLEXOR-R/loaf-breaker.git 'refs/tags/loaf-v*' | grep "^$FW" \
+               | sed 's|.*refs/tags/loaf-v||; s|\^{}$||' | head -1 || true)"
+          [ -n "$V" ] || V="dev-${FW:0:7}"
+          [ "$GITHUB_REF_NAME" = release ] || V="$V-test${{ github.run_number }}"
+          echo "VERSION=$V" >> "$GITHUB_ENV"
+      - name: The package
+        run: |
+          A="build/cmake/LoafBreaker_artefacts/Release"
+          P="LOAF-BREAKER-VST-$VERSION-Mac"
+          mkdir -p "pkg/$P"
+          cp -R "$A/VST3/LOAF BREAKER.vst3" "$A/AU/LOAF BREAKER.component" "$A/Standalone/LOAF BREAKER.app" "pkg/$P/"
+          cp INSTALL_MAC.txt "pkg/$P/LISEZ-MOI.txt"
+          (cd pkg && ditto -c -k --keepParent "$P" "../$P.zip")
+          echo "PKG=$P" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PKG }}
+          path: ${{ env.PKG }}.zip
+      - name: Into the release (or the TEST), beside the Windows one
+        if: github.ref_name == 'main' || github.ref_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          T=vst-test; [ "$GITHUB_REF_NAME" = release ] && T="vst-v$VERSION"
+          gh release upload "$T" "$PKG.zip" --clobber
