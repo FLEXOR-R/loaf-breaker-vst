@@ -207,6 +207,10 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   eqRange), each point the nearest one where clicked, dragged up / down its gain, sideways its frequency (eqDb, eqHz:
   LOW / LO FREQ, MID / MID FREQ on PRE EQ, HIGH / HI FREQ on PRE EQ +), its values beside it while held. The kick's
   EQ and the chain's stay as they were (the gain alone, FLEXOR's).
+- Firmware 0.9.87 (27 Nov 2026): KICK › DIST's PRE EQ a part a band, PRE LOW / PRE MID / PRE HIGH (chips PRE L, PRE M,
+  PRE H), each LOW DB / LOW FREQ / LOW Q (MID, HIGH alike); the curve on PRE LOW's card (eqPreFor: PRE LOW with LOW DB,
+  or the old PRE EQ), its points by the new names, each band's own Q in the drawing (LOW Q, MID Q, HIGH Q); SCREEN FX's
+  LOAF LORD rain through lb_scan as any.
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.

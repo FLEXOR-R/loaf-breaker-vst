@@ -947,10 +947,14 @@ struct MenuContent : Part
         return n == 3;
     }
     // (FLEXOR: "la section pré-EQ visuelle comme la section EQ des FX ou du kick ... les bouger de haut en bas, mais
-    // aussi de gauche à droite"): the kick's PRE EQ (DIST › PRE EQ: LOW, LO FREQ, MID, MID FREQ; PRE EQ + its HIGH,
-    // HI FREQ, MID Q): the curve on PRE EQ's card, each point its gain up / down and its frequency sideways
+    // aussi de gauche à droite"): the kick's PRE EQ (DIST › PRE L, PRE M, PRE H since the firmware's 0.9.87: each band
+    // its DB, FREQ and Q; 0.9.82-0.9.86 PRE EQ / PRE EQ +): the curve on PRE LOW's card, each point its gain up / down
+    // and its frequency sideways
     static bool eqPreFor(const Card& c)
     {
+        if (c.title == "PRE LOW")
+            for (auto& q : c.ps)
+                if (q.name == "LOW DB") return true;
         if (c.title != "PRE EQ") return false;
         int n = 0;
         for (auto& q : c.ps)
@@ -973,6 +977,9 @@ struct MenuContent : Part
             const auto it = hzSeen.find(k);
             return it != hzSeen.end() ? it->second : d;
         };
+        if (preEq() && (findP("LOW DB") || findP("MID DB") || findP("HIGH DB")))   // (0.9.87: PRE L / PRE M / PRE H)
+            return { EqPt { hz("LOW FREQ", 126.0f), v("LOW DB", 0), "LOW DB", "LOW FREQ" }, EqPt { hz("MID FREQ", 999.0f), v("MID DB", 0), "MID DB", "MID FREQ" },
+                     EqPt { hz("HIGH FREQ", 5700.0f), v("HIGH DB", 0), "HIGH DB", "HIGH FREQ" } };
         return { EqPt { hz("LO FREQ", 126.0f), v("LOW", 0), "LOW", "LO FREQ" }, EqPt { hz("MID FREQ", 999.0f), v("MID", 0), "MID", "MID FREQ" },
                  EqPt { hz("HI FREQ", 5700.0f), v("HIGH", 0), "HIGH", "HI FREQ" } };
     }
@@ -982,9 +989,11 @@ struct MenuContent : Part
         auto* qq = findP("MID Q");
         const float q = qq ? juce::jmax(0.2f, qq->val.getFloatValue()) : 1.1f;
         const float mid = p[1].db / (1.0f + std::pow(q * (hz / p[1].hz - p[1].hz / hz), 2.0f));
-        if (preEq()) {                       // (the PRE EQ's three are bells, LOW's and HIGH's Q 0.8: the firmware's kick.c)
-            auto bell = [&](const EqPt& e) { return e.db / (1.0f + std::pow(0.8f * (hz / e.hz - e.hz / hz), 2.0f)); };
-            return bell(p[0]) + mid + bell(p[2]);
+        if (preEq()) {                       // (the PRE EQ's three are bells: each its own Q since 0.9.87, LOW's and
+                                             // HIGH's 0.8 before, as the firmware's kick.c)
+            auto qOf = [&](const char* n, float d) { auto* r = findP(n); return r ? juce::jmax(0.2f, r->val.getFloatValue()) : d; };
+            auto bell = [&](const EqPt& e, float bq) { return e.db / (1.0f + std::pow(bq * (hz / e.hz - e.hz / hz), 2.0f)); };
+            return bell(p[0], qOf("LOW Q", 0.8f)) + mid + bell(p[2], qOf("HIGH Q", 0.8f));
         }
         const float lo = p[0].db / (1.0f + std::pow(hz / p[0].hz, 2.0f)), hi = p[2].db / (1.0f + std::pow(p[2].hz / hz, 2.0f));
         auto* lv = findP("LEVEL");
