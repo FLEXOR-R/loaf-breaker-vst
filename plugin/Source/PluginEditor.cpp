@@ -3432,10 +3432,19 @@ void LoafBreakerEditor::timerCallback()
         if (ui::fm1SkinIs(m.skin)) root->repaint();   // (the VST follows the FM-1's skin: it changed)
         if (juce::String(m.dom) != lastDom) { lastDom = m.dom; opts.clear(); asked.clear(); }   // (another domain: its lists looked at again)
         if (seqView() != root->seqShown || songView() != root->songShown || heroKind() != root->heroShown) root->resized();
-        // a source asked for (SOUNDS: KICK, DRUMS, BREAK): SEL + EDIT until it is the one
-        if (pendingSource.isNotEmpty()) {
-            if (juce::String(m.label) == pendingSource || ++sourceTries > 4) pendingSource.clear();
-            else if (sourceTries % 2 == 0) { hold(LB_SEL, true); tap(LB_EDIT); juce::Timer::callAfterDelay(120, [this] { hold(LB_SEL, false); }); }
+    }
+    // a source asked for (SOUNDS: KICK, DRUMS, BREAK): SEL + EDIT (the next: KICK > DRUMS > BREAK > KICK) until it is the
+    // one, a press every 250 ms (27 Nov 2026, FLEXOR: "sur drum je clique sur kick, ça va sur break": DRUMS to KICK takes
+    // two, and the second waited for the model to change, which it no longer did once on BREAK)
+    if (pendingSource.isNotEmpty()) {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        if (juce::String(m.label) == pendingSource || sourceTries >= 4) pendingSource.clear();
+        else if (now >= sourceNext) {
+            ++sourceTries;
+            sourceNext = now + 250.0;
+            hold(LB_SEL, true);
+            tap(LB_EDIT);
+            juce::Timer::callAfterDelay(120, [this] { hold(LB_SEL, false); });
         }
     }
     if (proc.waveIfNew(waveSerial, wave)) {
@@ -3875,6 +3884,7 @@ void LoafBreakerEditor::goSource(const juce::String& label)
     if (juce::String(m.label) == label) return;
     pendingSource = label;
     sourceTries = 0;
+    sourceNext = juce::Time::getMillisecondCounterHiRes() + 150.0;   // (after the EDIT above, if any)
 }
 void LoafBreakerEditor::toast(const juce::String& t)
 {

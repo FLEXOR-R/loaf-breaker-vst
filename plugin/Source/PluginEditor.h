@@ -100,6 +100,7 @@ private:
     std::set<int> heldKeys;
     juce::String pendingSource;
     int sourceTries = 0;
+    double sourceNext = 0.0;            // (the next SEL + EDIT, ms)
     std::unique_ptr<juce::FileChooser> chooser;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoafBreakerEditor)
 };

@@ -42,7 +42,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   vignette; his face and gothic title, Resources/loaflord_*.png from FLEXOR's poster). Header (tempo, break, pattern,
   the FM-1's message, meters, MENU: skin, keyboard, the FM-1's screen on / off, the machine link), the categories
   (LIVE SOUNDS PATTERN SONG MIX EFFECTS ARP SYSTEM: the FM-1's page buttons), the page's tabs (a click: SELECT turned
-  by the difference; SOUNDS: KICK DRUMS BREAK, SEL + EDIT until there) and its part (< >: ALGORITHM), the break's
+  by the difference; SOUNDS: KICK DRUMS BREAK, SEL + EDIT until there: a press every 250 ms from the editor's timer, at
+  most 4, since 27 Nov 2026: DRUMS to KICK takes two, the second used to wait for a model change that never came) and its part (< >: ALGORITHM), the break's
   waveform always (lb_wave: 1024 columns, peak and three bands; slices, playhead, 32 steps; a click plays a slice), the
   four knobs named as the page's (lb_model: knob_name / knob_value / foot_norm; SEL's when SHIFT is held), the FM-1's
   screen (optional), the output's scope, the 12 performance pads named as the layout's functions and the 16 slice
