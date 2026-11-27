@@ -211,6 +211,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   PRE H), each LOW DB / LOW FREQ / LOW Q (MID, HIGH alike); the curve on PRE LOW's card (eqPreFor: PRE LOW with LOW DB,
   or the old PRE EQ), its points by the new names, each band's own Q in the drawing (LOW Q, MID Q, HIGH Q); SCREEN FX's
   LOAF LORD rain through lb_scan as any.
+- Firmware 0.9.91 (27 Nov 2026): the PRE EQ's FREQ heard again (0.9.87-0.9.90 wrote each band's Q over its frequency in
+  the firmware's kick.c: the VST's 0.9.87 had it too); the FM-1's SEQ grid to its foot (the preview's alone).
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
