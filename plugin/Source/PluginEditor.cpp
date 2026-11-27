@@ -2878,7 +2878,7 @@ struct Machine : Part
 };
 
 // ---------------------------------------------------------------------------------------------------- pads ---
-// the 12 black keys (and REC) and the 16 slices: folded to a strip under the menus (the menus' room), or open, big
+// the 11 black keys, REC (it records, or with REC MODE BLACK KEYS a second SEL: firmware 0.9.93) and the 16 slices: folded to a strip under the menus (the menus' room), or open, big
 struct Pads : Part
 {
     explicit Pads(LBE& e) : Part(e) {}

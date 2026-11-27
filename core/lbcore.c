@@ -265,8 +265,9 @@ void lb_model(lb_model_t *m)
         uint32_t f = bk_fn_shown(i);
         if (i == 11u && !rec_key_on()) {
             lb_copy(m->pad[i], "REC", sizeof m->pad[i]);
-            lb_copy(m->padlong[i], "RECORD", sizeof m->padlong[i]);
-            m->padon[i] = ui.rec != 0;
+            lb_copy(m->padlong[i], rec_bk() ? "SECOND SEL" : "RECORD", sizeof m->padlong[i]);   /* (firmware 0.9.93:
+                                          * REC MODE BLACK KEYS, REC as SEL; REC no longer a black key) */
+            m->padon[i] = rec_bk() ? rec_mod() != 0 : ui.rec != 0;
             continue;
         }
         lb_copy(m->pad[i], BKF_NAME[f % BKF_N], sizeof m->pad[i]);
