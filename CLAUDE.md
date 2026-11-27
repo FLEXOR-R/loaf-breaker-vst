@@ -233,6 +233,11 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   `firmware` submodule moved to that commit (the released one: the loaf-vA.B.C tag's), the VST's own changes, pushed
   to main (a TEST), and published only if FLEXOR wants (`git push origin main:release`). The VST's version is the
   firmware's it carries (vst-vA.B.C = loaf-vA.B.C).
+- **Publish only what changed** (27 Nov 2026, FLEXOR: "pousser juste le site internet, juste le firmware ou juste le VST
+  quand ça a du sens. Il faut pas publier pour rien"): a firmware release that doesn't reach the VST (the site, the
+  hub's card, the docs, the FM-1's own screen or flash) moves nothing here: no submodule bump, no TEST, no release. The
+  VST goes out when its own code changed or the firmware's sound / menus / shared code did; its number is then the
+  firmware's of the time (it may skip some: 0.9.87 then 0.9.91).
 - CI `.github/workflows/build.yml`: main -> TEST (pre-release `vst-test`, replaced each push,
   LOAF-BREAKER-VST-A.B.C-testN-Windows.zip); release -> `vst-vA.B.C`. Core on Linux, plugin on Windows; INSTALL.txt as
   LISEZ-MOI.txt. Private repo: Actions minutes are limited (Windows counts double): don't push trivial changes one by
