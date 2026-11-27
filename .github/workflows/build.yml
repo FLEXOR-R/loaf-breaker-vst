@@ -151,7 +151,7 @@ jobs:
   mac:
     needs: [core, windows]
     if: ${{ !cancelled() && needs.core.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (github.ref_name == 'release' || github.event_name == 'workflow_dispatch') }}
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: The firmware (loaf-breaker) and fm1-base
