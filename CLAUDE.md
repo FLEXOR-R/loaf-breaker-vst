@@ -235,7 +235,7 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   MOTION chains M1+M2 / M3+M4 / M1>M4, M SET), knob functions XSUB FREQ and GATE, black keys XSB and MOT, the sequencer
   without the black keys' row; the cards show the new tabs through lb_scan as any.
 - Hosts (26 Nov 2026, FLEXOR: "compatible avec Ableton et FL Studio"): VST3 instrument (Ableton Live 10.1+, FL Studio
-  20+ on Windows; a Mac needs its own build, none in CI), stereo out, MIDI in. processBlock works out at most
+  20+ on Windows; on a Mac VST3 and AU: Ableton, Logic, Bitwig ...), stereo out, MIDI in. processBlock works out at most
   prepareToPlay's block at a time (its buffers sized for it; FL Studio's blocks vary); lbtest prepares again with a
   longer maximum and hands blocks of 1 .. 4133 samples.
 - Tests: `plugin/Test/HostTest.cpp` (lbtest PATH.vst3 OUT.wav: loads it as a DAW, 48 kHz, host playing 170 BPM: sound,
@@ -257,5 +257,13 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   firmware's of the time (it may skip some: 0.9.87 then 0.9.91).
 - CI `.github/workflows/build.yml`: main -> TEST (pre-release `vst-test`, replaced each push,
   LOAF-BREAKER-VST-A.B.C-testN-Windows.zip); release -> `vst-vA.B.C`. Core on Linux, plugin on Windows; INSTALL.txt as
-  LISEZ-MOI.txt. Private repo: Actions minutes are limited (Windows counts double): don't push trivial changes one by
+  LISEZ-MOI.txt. The Mac version (27 Nov 2026, FLEXOR: "fais une version mac de la VST et publie la"): the job `mac`
+  (macos-latest), at each release and when run by hand (Run workflow; on main its zip goes into the TEST too), never
+  at a plain main push (a private repository's Mac minutes count ten times): the core a universal liblbcore.dylib
+  (build_core.sh `*.dylib`: arm64 + x86_64, macOS 11 on; its coretest run there: core/lbsnap.c keeps the state from
+  the Mach-O image's writable segments, the *_CONST ones left out as ELF's RELRO), the plugin universal by JUCE (VST3,
+  AU, Standalone .app), the dylib in each bundle's Contents/MacOS, the bank and its index in Contents/Resources (Core.cpp
+  finds both there), everything signed ad hoc (no Apple account: not notarized, the player runs `xattr -cr` once,
+  INSTALL_MAC.txt as LISEZ-MOI.txt), lbtest and auval; LOAF-BREAKER-VST-A.B.C-Mac.zip beside the Windows one (a
+  release made again: `gh release upload --clobber`). Untested on a real Mac by Claude: FLEXOR's friend reports. Private repo: Actions minutes are limited (Windows counts double): don't push trivial changes one by
   one.
