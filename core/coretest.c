@@ -46,6 +46,13 @@ int main(void)
     run(30);
     lb_seq(&s);
     check(s.mask[0][0] & 1, "the kick's step 1 on");
+    lb_step(1, 2, 2, 0, 0);              /* (ABI 17) a hat step on, then open: OH */
+    lb_step(2, 2, 2, 0, 1);
+    lb_seq(&s);
+    check(s.mask[2][0] >> 2 & 1 && s.hopen[2] && !s.hopen[3], "a hat step open (OH), the next closed");
+    lb_step(2, 2, 2, 0, -1);
+    lb_seq(&s);
+    check(!s.hopen[2], "the hat step closed again (HH)");
     run(500);
     lb_model(&b);
     check(!strcmp(b.dom, "PATTERN"), "still on PATTERN, still answering");

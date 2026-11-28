@@ -522,6 +522,8 @@ void lb_seq(lb_seq_t *q)
     q->clip = clip_from;
     for (i = 0; i < 64u; i++)
         q->note[i] = (int8_t)kick_note(p, i);
+    for (i = 0; i < 32u; i++)            /* (ABI 17: the hat's steps open, OH) */
+        q->hopen[i] = (uint8_t)hat_open(set.pattern, i);
     for (i = 0; i < PAT_STEPS && i < 32u; i++) {
         q->brk[i][0] = p->st[i][0];
         q->brk[i][1] = p->st[i][1];

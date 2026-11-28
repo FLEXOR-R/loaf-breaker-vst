@@ -40,7 +40,7 @@ typedef struct {
 } lb_model_t;
 enum { LB_FX, LB_SEL, LB_ENV, LB_LFO, LB_EDIT, LB_GLO, LB_HOME, LB_SAVE, LB_ARP, LB_SEQ, LB_PLAY, LB_REC, LB_OCTDN, LB_OCTUP };
 enum { LB_SELECT, LB_ALGO, LB_PRESET, LB_K1, LB_K2, LB_K3, LB_K4 };
-#define LB_ABI 16
+#define LB_ABI 17
 LB_API int lb_abi(void);
 /* boot (with the saved flash image given before, or a new FM-1's), then run up to `ms` simulated milliseconds silently
  * (the start screen; the mode question answered EXPERT) */
@@ -123,6 +123,8 @@ typedef struct {
                                           * (bit 0 reverse, 1-2 repeat - 1) */
     char snd[4][20];                       /* what each lane plays ("KICK 4", "SNARE 2" ...) */
     char brkname[16];
+    uint8_t hopen[32];                     /* (ABI 17, the firmware's 0.9.97) each hat step open (OH, 1) or closed (HH, 0): a
+                                          * drum step's knob 0 on the hat (lb_step 2, c 0) turns it, right open */
 } lb_seq_t;
 LB_API void lb_seq(lb_seq_t *q);
 /* a sequencer edit, through SEQ's own code (the same clamps and undo): op 1 a drum step on / off (a the drum 0..3, b its

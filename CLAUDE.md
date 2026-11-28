@@ -230,6 +230,10 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   MATH SHIFT, big rolls, CHAOS+ (HOME's fifth tab: the cards through lb_scan as any), the CHS key's LATCH and SEED.
 - Firmware 0.9.96 (28 Nov 2026): the black keys KDR KSN KHH KCP (the drums, the snare, the hat, the clap off / on; the
   pads name them through lb_model, the KeyPanel shows no knobs for them), BKF_N 34. The first VST with its Mac version.
+- Firmware 0.9.97 (28 Nov 2026): MIX › FILTERS (the break and drum filters' kinds, RESO, KICK SWITCH: the cards through
+  lb_scan as any), the 909 drums as the base, HH / OH: each hat step closed or open (lbcore lb_seq_t `hopen[32]`, ABI 17;
+  SeqPanel draws an open hat step's top hollow with "OH", the step inspector's HH / OH sends lb_step 2 c 0, the
+  firmware's K1 of a held hat step; coretest checks it), the hat's SPACE K1 OH DECAY / K2 OH LEVEL, HI-HAT now HAT.
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.

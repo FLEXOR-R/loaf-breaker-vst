@@ -1971,6 +1971,14 @@ struct SeqPanel : Part
                 g.setColour(sk.white);
                 g.fillRect(c.getX() + (c.getWidth() - 4.0f) * (b >> 5) / 8.0f, c.getBottom() - 4.0f, 4.0f, 3.0f);
             }
+            if (r == 3 && ed.seq.hopen[i & 31]) { // the hat open (OH, the firmware's 0.9.97): its top hollow, "OH"
+                auto top = c.withHeight(c.getHeight() * 0.5f).reduced(3.0f, 3.0f);
+                g.setColour(sk.bg);
+                g.fillRect(top);
+                g.setColour(sk.white);
+                g.setFont(ui::value(10.0f));
+                g.drawText("OH", top, juce::Justification::centred);
+            }
             if (r == 1 && ed.seq.note[i]) {       // the kick's note: a white line on top, its value
                 g.setColour(sk.white);
                 g.fillRect(c.getX() + 1.0f, c.getY(), c.getWidth() - 2.0f, 3.0f);
@@ -2058,6 +2066,7 @@ struct SeqPanel : Part
         } else {
             const uint8_t b = sb(selRow, selCol);
             if (selRow == 1) add("NOTE", (q.note[selCol] > 0 ? "+" : "") + juce::String(q.note[selCol]) + " ST", 2, 0, 16, q.note[selCol] + 8, {}, 150.0f);
+            if (selRow == 3) add("HH / OH", {}, 2, 0, 2, q.hopen[selCol & 31] ? 1 : 0, { "HH", "OH" }, 150.0f);   // (the hat closed or open)
             add("HITS", {}, 2, 1, 4, b & 3, { "1", "2", "3", "4" }, 130.0f);
             add("CHANCE", {}, 2, 2, 6, juce::jmin(5, b >> 2 & 7), { "100%", "75%", "50%", "25%", "1:2", "2:2" }, 260.0f);
             add("NUDGE", (b >> 5) ? "+" + juce::String(b >> 5) + "/16" : "PILE", 2, 3, 8, b >> 5, {}, 140.0f);
