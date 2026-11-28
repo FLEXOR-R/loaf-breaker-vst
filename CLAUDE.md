@@ -228,6 +228,8 @@ un séquenceur plus grand, plus de possibilités"; private, shared with a friend
   FM-1's bank, set2 (the settings past settings_t, after the KICK LAB in OBJ_KLAB: fm1sync copies the object whole, so
   it travels; knob codes to 255: the kick blobs (.lbkick) will need set2's skx once a code passes 31), CHAOS's styles,
   MATH SHIFT, big rolls, CHAOS+ (HOME's fifth tab: the cards through lb_scan as any), the CHS key's LATCH and SEED.
+- Firmware 0.9.96 (28 Nov 2026): the black keys KDR KSN KHH KCP (the drums, the snare, the hat, the clap off / on; the
+  pads name them through lb_model, the KeyPanel shows no knobs for them), BKF_N 34. The first VST with its Mac version.
 - Firmware 0.9.85 (26 Nov 2026): KIL MUTES, the PRE EQ's gains / frequencies and BRK FLT as knob functions, ARP's
   ASSIGN and MOTION tabs (the cards show them through lb_scan as any tab). The motions are saved after km2 in
   OBJ_KMEM2 (the object longer): fm1sync copies objects whole by their stored length, so they travel both ways.
